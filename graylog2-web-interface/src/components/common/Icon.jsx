@@ -6,10 +6,10 @@ import deprecationNotice from 'util/deprecationNotice';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { fas } from '@fortawesome/free-solid-svg-icons';
+
 import compareIconNames from './icon-fallback';
 
 library.add(fas);
-
 
 const cleanIconName = (icon) => {
   const v4icon = find(compareIconNames, { v4: icon });
