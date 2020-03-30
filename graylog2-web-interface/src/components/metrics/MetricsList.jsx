@@ -4,14 +4,14 @@ import styled from 'styled-components';
 
 import { Metric } from 'components/metrics';
 
-const MetricListWrap = styled.ul`
+const MetricListWrap = styled.ul(({ theme }) => `
   padding: 0;
 
   li {
     margin-bottom: 5px;
 
     .prefix {
-      color: #aaa;
+      color: ${theme.color.gray[70]};
     }
 
     .name {
@@ -38,7 +38,7 @@ const MetricListWrap = styled.ul`
     margin-top: 0;
     margin-bottom: 0;
   }
-`;
+`);
 
 class MetricsList extends React.Component {
   static propTypes = {
@@ -58,7 +58,7 @@ class MetricsList extends React.Component {
   render() {
     const metrics = this.props.names
       .sort((m1, m2) => m1.full_name.localeCompare(m2.full_name))
-      .map(metric => this._formatMetric(metric));
+      .map((metric) => this._formatMetric(metric));
 
     return (
       <MetricListWrap>

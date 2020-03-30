@@ -6,10 +6,10 @@ import { Overlay, Transition } from 'react-overlays';
 
 import styles from './OverlayDropdown.css';
 
-const StyledList = styled.ul(({ show }) => `
+const StyledList = styled.ul(({ show, theme }) => `
   padding-left: 5px;
   padding-right: 5px;
-  color: #666666;
+  color: ${theme.color.gray[40]};
   z-index: 1050;
   min-width: 'max-content';
   display: ${show ? 'block' : 'none'};
@@ -21,7 +21,7 @@ const oppositePlacement = {
 };
 
 const FilterProps = ({ children, style }) => React.Children.map(children,
-  child => React.cloneElement(child, { style: Object.assign({}, style, child.props.style) }));
+  (child) => React.cloneElement(child, { style: { ...style, ...child.props.style } }));
 
 const OverlayDropdown = ({ children, menuContainer, onToggle, placement, show, toggle }) => {
   const [currentPlacement, setCurrentPlacement] = useState(placement);

@@ -26,10 +26,10 @@ type Props = {
   },
 };
 
-const DecoratedField = styled.small`
-  color: #aaa;
+const DecoratedField = styled.small(({ theme }) => `
+  color: ${theme.color.gray[70]};
   font-weight: normal;
-`;
+`);
 
 const MessageField = ({ fieldName, fieldType, message, value, currentView }: Props) => {
   const innerValue = SPECIAL_FIELDS.indexOf(fieldName) !== -1 ? message.fields[fieldName] : value;
@@ -55,7 +55,7 @@ const MessageField = ({ fieldName, fieldType, message, value, currentView }: Pro
     : ({ children }) => children;
 
   return (
-    <React.Fragment>
+    <>
       <dt>
         <Field queryId={activeQuery} name={fieldName} type={isDecoratedField ? FieldType.Decorated : fieldType}>{fieldName}</Field>
       </dt>
@@ -64,7 +64,7 @@ const MessageField = ({ fieldName, fieldType, message, value, currentView }: Pro
           <Value queryId={activeQuery} field={fieldName} value={innerValue} type={isDecoratedField ? FieldType.Decorated : fieldType} render={DecoratedValue} />
         </ValueContext>
       </dd>
-    </React.Fragment>
+    </>
   );
 };
 

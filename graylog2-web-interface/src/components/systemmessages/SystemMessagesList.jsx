@@ -3,16 +3,15 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { Table } from 'components/graylog';
-
 import { SystemMessage } from 'components/systemmessages';
 
-const SystemMessagesTable = styled(Table)`
+const SystemMessagesTable = styled(Table)(({ theme }) => `
   font-size: 12px;
 
   a {
-    color: #000;
+    color: ${theme.color.global.textDefault};
   }
-`;
+`);
 
 const TimestampTH = styled.th`
   width: 200px;
@@ -30,7 +29,7 @@ const SystemMessagesList = ({ messages }) => {
       </thead>
 
       <tbody>
-        {messages.map(message => <SystemMessage key={`message-${Math.random().toString(36).substring(7)}`} message={message} />)}
+        {messages.map((message) => <SystemMessage key={`message-${Math.random().toString(36).substring(7)}`} message={message} />)}
       </tbody>
     </SystemMessagesTable>
   );

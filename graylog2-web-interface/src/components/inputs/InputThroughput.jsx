@@ -13,9 +13,9 @@ import ActionsProvider from 'injection/ActionsProvider';
 import NumberUtils from 'util/NumberUtils';
 import { Icon, LinkToNode, Spinner } from 'components/common';
 
-const InputIO = styled.span`
+const InputIO = styled.span(({ theme }) => `
   .total {
-    color: #b8b8b8;
+    color: ${theme.color.gray[70]};
   }
 
   .value {
@@ -40,7 +40,7 @@ const InputIO = styled.span`
     position: relative;
     top: -1px;
   }
-`;
+`);
 
 const MetricsStore = StoreProvider.getStore('Metrics');
 const MetricsActions = ActionsProvider.getActions('Metrics');
@@ -61,11 +61,11 @@ const InputThroughput = createReactClass({
   },
 
   componentWillMount() {
-    this._metricNames().forEach(metricName => MetricsActions.addGlobal(metricName));
+    this._metricNames().forEach((metricName) => MetricsActions.addGlobal(metricName));
   },
 
   componentWillUnmount() {
-    this._metricNames().forEach(metricName => MetricsActions.removeGlobal(metricName));
+    this._metricNames().forEach((metricName) => MetricsActions.removeGlobal(metricName));
   },
 
   _metricNames() {
@@ -167,7 +167,7 @@ const InputThroughput = createReactClass({
     return (
       <span>
         <hr key="separator" />
-        {Object.keys(metrics).map(nodeId => this._formatNodeDetails(nodeId, metrics[nodeId]))}
+        {Object.keys(metrics).map((nodeId) => this._formatNodeDetails(nodeId, metrics[nodeId]))}
       </span>
     );
   },
