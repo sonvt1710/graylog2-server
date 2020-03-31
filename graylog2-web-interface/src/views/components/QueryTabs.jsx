@@ -2,6 +2,7 @@
 import * as React from 'react';
 import * as Immutable from 'immutable';
 import PropTypes from 'prop-types';
+import styled from 'styled-components';
 
 import { Tab, Tabs, Col, Row } from 'components/graylog';
 import QueryTitle from 'views/components/queries/QueryTitle';
@@ -11,6 +12,39 @@ import { QueryIdsStore } from 'views/stores/QueryIdsStore';
 import Query from 'views/logic/queries/Query';
 import type { TitlesMap } from 'views/stores/TitleTypes';
 import ViewState from 'views/logic/views/ViewState';
+
+const QueryTabsWrap = styled(Tabs)(({ theme }) => `
+  .nav-tabs {
+    li {
+      &.active {
+        a {
+          background-color: ${theme.color.gray[100]};
+          color: ${theme.color.gray[20]};
+
+          [class*="fa-"] {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            margin-left: 6px;
+            cursor: pointer;
+          }
+        }
+      }
+
+      a {
+        background-color: ${theme.color.gray[90]};
+        color: ${theme.color.variant.info};
+
+        &:hover {
+          border: 1px solid transparent;
+          color: ${theme.color.gray[10]};
+        }
+      }
+    }
+  }
+`);
 
 type Props = {
   children: React.Node,
@@ -81,12 +115,11 @@ class QueryTabs extends React.Component<Props> {
     return (
       <Row style={{ marginBottom: 0 }}>
         <Col>
-          <Tabs activeKey={selectedQueryId}
-                animation={false}
-                id="QueryTabs"
-                onSelect={onSelect}>
+          <QueryTabsWrap activeKey={selectedQueryId}
+                         animation={false}
+                         onSelect={onSelect}>
             {tabs}
-          </Tabs>
+          </QueryTabsWrap>
           {/*
           The title edit modal can't be part of the QueryTitle component,
           due to the react bootstrap tabs keybindings.
