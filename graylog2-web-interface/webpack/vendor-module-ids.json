@@ -890,7 +890,7 @@
       "node_modules/moment/locale sync /^\\.\\/.*$/": 25,
       "node_modules/moment-timezone/node_modules/moment/locale sync /^\\.\\/.*$/": 32,
       "node_modules/moment/locale/mn.js": 13,
-      "node_modules/hoist-non-react-statics/dist/hoist-non-react-statics.cjs.js": 18,
+      "node_modules/hoist-non-react-statics/dist/hoist-non-react-statics.cjs.js": 11,
       "node_modules/scheduler/index.js": 20,
       "node_modules/scheduler/cjs/scheduler.production.min.js": 29,
       "node_modules/react-dom/node_modules/scheduler/index.js": 20,
@@ -1089,7 +1089,9 @@
       "node_modules/has-symbols/index.js": 260,
       "node_modules/has-symbols/shams.js": 261,
       "node_modules/prop-types-extra/node_modules/warning/warning.js": 262,
-      "node_modules/chroma-js/chroma.js": 47
+      "node_modules/chroma-js/chroma.js": 47,
+      "node_modules/shallowequal/index.js": 12,
+      "node_modules/styled-components/node_modules/@emotion/stylis/dist/stylis.browser.esm.js": 48
     },
     "usedIds": {
       "0": 0,
