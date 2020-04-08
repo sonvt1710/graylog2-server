@@ -37,6 +37,7 @@ import org.graylog.plugins.views.search.db.SearchesCleanUpJob;
 import org.graylog.plugins.views.search.elasticsearch.ESGeneratedQueryContext;
 import org.graylog.plugins.views.search.elasticsearch.ElasticsearchQueryString;
 import org.graylog.plugins.views.search.export.ExportBackend;
+import org.graylog.plugins.views.search.export.SimpleMessageChunkCsvWriter;
 import org.graylog.plugins.views.search.export.es.ElasticsearchExportBackend;
 import org.graylog.plugins.views.search.filter.AndFilter;
 import org.graylog.plugins.views.search.filter.OrFilter;
@@ -171,6 +172,8 @@ public class ViewsBindings extends ViewsModule {
         queryMetadataDecoratorBinder();
 
         registerExceptionMappers();
+
+        jerseyAdditionalComponentsBinder().addBinding().toInstance(SimpleMessageChunkCsvWriter.class);
     }
 
     private void registerSortConfigSubclasses() {
