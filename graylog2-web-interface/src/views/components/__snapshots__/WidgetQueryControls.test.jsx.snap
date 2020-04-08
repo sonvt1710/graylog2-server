@@ -18,7 +18,7 @@ exports[`WidgetQueryControls should do something 1`] = `
           <button
             aria-expanded="false"
             aria-haspopup="true"
-            class="DropdownButton__StyledDropdownButton-sc-1343dcx-0 jnkCLr dropdown-toggle btn btn-info"
+            class="DropdownButton__StyledDropdownButton-sc-1343dcx-0 lexJMU dropdown-toggle btn btn-info"
             id="dropdown-timerange-selector"
             role="button"
             type="button"
