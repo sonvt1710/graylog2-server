@@ -24,7 +24,7 @@ import StreamsContext from 'contexts/StreamsContext';
 import UseCreateViewForEventDefinition from 'views/logic/views/UseCreateViewForEventDefinition';
 import useProcessHooksForView from 'views/logic/views/UseProcessHooksForView';
 import { createSearch } from 'fixtures/searches';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import SearchExecutionState from 'views/logic/search/SearchExecutionState';
 import EventDefinitionReplaySearchPage, { onErrorHandler } from 'views/pages/EventDefinitionReplaySearchPage';
 import useEventDefinition from 'hooks/useEventDefinition';
@@ -72,9 +72,7 @@ describe('EventDefinitionReplaySearchPage', () => {
     </StreamsContext.Provider>
   );
 
-  beforeAll(loadViewsPlugin);
-
-  afterAll(unloadViewsPlugin);
+  useViewsPlugin();
 
   beforeEach(() => {
     asMock(useParams).mockReturnValue({ definitionId: mockEventDefinitionTwoAggregations.id });
@@ -109,8 +107,10 @@ describe('EventDefinitionReplaySearchPage', () => {
       onErrorHandler,
     }));
 
-    await expect(UseCreateViewForEventDefinition).toHaveBeenCalledWith({
-      eventDefinition: mockEventDefinitionTwoAggregations, aggregations: mockedMappedAggregation,
+    await waitFor(() => {
+      expect(UseCreateViewForEventDefinition).toHaveBeenCalledWith({
+        eventDefinition: mockEventDefinitionTwoAggregations, aggregations: mockedMappedAggregation,
+      });
     });
   });
 });

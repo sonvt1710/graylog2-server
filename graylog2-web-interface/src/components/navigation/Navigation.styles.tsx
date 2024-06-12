@@ -25,30 +25,35 @@ import {
 
 const StyledNavbar = styled(Navbar)(({ theme }) => css`
   .dev-badge-wrap > a {
-    padding: 0 !important;
     cursor: default;
   }
 
-  .dev-badge-wrap .dev-badge {
-    margin: 0 10px;
-  }
-
-  &.navbar-default .navbar-main > li {
-    > a {
-      font-family: ${theme.fonts.family.navigation};
-      font-size: ${theme.fonts.size.navigation};
+  &.navbar-default {
+    .navbar-nav > li > a {
+      padding: 0 15px;
+      height: ${NAV_ITEM_HEIGHT};
+      display: inline-flex;
+      align-items: center;
     }
 
-    &:hover {
-      ${hoverIndicatorStyles(theme)}
-    }
+    .navbar-nav > li, .navbar-nav > span {
+      > * {
+        font-family: ${theme.fonts.family.navigation};
+        font-size: ${theme.fonts.size.navigation};
 
-    &.active {
-      ${activeIndicatorStyles(theme)}
+        &:hover, &:focus {
+          ${hoverIndicatorStyles(theme)}
+        }
+      }
 
-      &:hover,
-      :focus {
-        ${activeIndicatorStyles(theme)}
+      &.active {
+        > * {
+          ${activeIndicatorStyles(theme)}
+          &:hover,
+          &:focus {
+            ${activeIndicatorStyles(theme)}
+          }
+        }
       }
     }
   }
@@ -64,7 +69,7 @@ const StyledNavbar = styled(Navbar)(({ theme }) => css`
     }
   }
 
-  @media (max-width: 991px) {
+  @media (width <= 991px) {
     .small-scrn-badge {
       float: right;
       margin: 15px 15px 0;
@@ -90,6 +95,10 @@ const StyledNavbar = styled(Navbar)(({ theme }) => css`
       #welcome-nav-link {
         font-size: ${theme.fonts.size.body};
         font-family: ${theme.fonts.family.body};
+        padding: 0 15px;
+        height: ${NAV_ITEM_HEIGHT};
+        display: inline-flex;
+        align-items: center;
 
         &::before {
           content: attr(aria-label);
@@ -106,7 +115,7 @@ const StyledNavbar = styled(Navbar)(({ theme }) => css`
     }
   }
 
-  @media (min-width: 768px) {
+  @media (width >= 768px) {
     .navbar-toggle {
       display: block;
     }
@@ -145,12 +154,11 @@ const StyledNavbar = styled(Navbar)(({ theme }) => css`
     }
   }
 
-  @media (min-width: 991px) {
+  @media (width >= 991px) {
     .header-meta-nav {
       display: flex;
       align-items: center;
-
-      #scratchpad-toggle,
+      
       .dropdown-toggle {
         padding: 12px !important;
         min-height: ${NAV_ITEM_HEIGHT};

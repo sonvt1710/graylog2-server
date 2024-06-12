@@ -24,9 +24,10 @@ import org.graylog2.security.IndexerJwtAuthTokenProvider;
  * config file or from the ENV properties.
  */
 public record DatanodeConfiguration(
-        OpensearchDistribution opensearchDistribution,
-        String nodeName,
+        OpensearchDistributionProvider opensearchDistributionProvider,
+        DatanodeDirectories datanodeDirectories,
         int processLogsBufferSize,
+        String opensearchHeap,
         IndexerJwtAuthTokenProvider indexerJwtAuthTokenProvider
 ) {
 }

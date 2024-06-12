@@ -22,9 +22,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.ServiceManager;
 import com.google.inject.Injector;
+import com.google.inject.Key;
 import com.google.inject.Module;
 import com.google.inject.spi.Message;
 import com.mongodb.MongoException;
+import jakarta.inject.Inject;
 import org.graylog.enterprise.EnterpriseModule;
 import org.graylog.events.EventsModule;
 import org.graylog.events.processor.EventDefinitionConfiguration;
@@ -32,6 +34,7 @@ import org.graylog.grn.GRNTypesModule;
 import org.graylog.metrics.prometheus.PrometheusExporterConfiguration;
 import org.graylog.metrics.prometheus.PrometheusMetricsModule;
 import org.graylog.plugins.cef.CEFInputModule;
+import org.graylog.plugins.formatting.units.UnitsModule;
 import org.graylog.plugins.map.MapWidgetModule;
 import org.graylog.plugins.map.config.GeoIpProcessorConfig;
 import org.graylog.plugins.netflow.NetFlowPluginModule;
@@ -41,9 +44,11 @@ import org.graylog.plugins.views.ViewsBindings;
 import org.graylog.plugins.views.ViewsConfig;
 import org.graylog.plugins.views.search.rest.scriptingapi.ScriptingApiModule;
 import org.graylog.plugins.views.search.searchfilters.module.SearchFiltersModule;
+import org.graylog.plugins.views.storage.migration.DatanodeMigrationBindings;
 import org.graylog.scheduler.JobSchedulerConfiguration;
 import org.graylog.scheduler.JobSchedulerModule;
 import org.graylog.security.SecurityModule;
+import org.graylog.security.certutil.CaModule;
 import org.graylog.tracing.TracingModule;
 import org.graylog2.Configuration;
 import org.graylog2.alerts.AlertConditionBindings;
@@ -63,8 +68,9 @@ import org.graylog2.bindings.PersistenceServicesBindings;
 import org.graylog2.bindings.ServerBindings;
 import org.graylog2.bootstrap.Main;
 import org.graylog2.bootstrap.ServerBootstrap;
-import org.graylog2.cluster.NodeService;
 import org.graylog2.cluster.leader.LeaderElectionService;
+import org.graylog2.cluster.nodes.NodeService;
+import org.graylog2.cluster.nodes.ServerNodeDto;
 import org.graylog2.configuration.ContentStreamConfiguration;
 import org.graylog2.configuration.ElasticsearchClientConfiguration;
 import org.graylog2.configuration.ElasticsearchConfiguration;
@@ -76,6 +82,7 @@ import org.graylog2.configuration.TelemetryConfiguration;
 import org.graylog2.configuration.VersionCheckConfiguration;
 import org.graylog2.contentpacks.ContentPacksModule;
 import org.graylog2.database.entities.ScopedEntitiesModule;
+import org.graylog2.datatiering.DataTieringModule;
 import org.graylog2.decorators.DecoratorBindings;
 import org.graylog2.featureflag.FeatureFlags;
 import org.graylog2.indexer.FieldTypeManagementModule;
@@ -104,11 +111,10 @@ import org.graylog2.storage.VersionAwareStorageModule;
 import org.graylog2.streams.StreamsModule;
 import org.graylog2.system.processing.ProcessingStatusConfig;
 import org.graylog2.system.shutdown.GracefulShutdown;
+import org.graylog2.telemetry.TelemetryModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Inject;
-import javax.inject.Named;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -117,7 +123,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.graylog2.audit.AuditEventTypes.NODE_SHUTDOWN_INITIATE;
-import static org.graylog2.indexer.Constants.FIELD_TYPES_MANAGEMENT_FEATURE;
 import static org.graylog2.plugin.ServerStatus.Capability.CLOUD;
 import static org.graylog2.plugin.ServerStatus.Capability.MASTER;
 import static org.graylog2.plugin.ServerStatus.Capability.SERVER;
@@ -165,7 +170,7 @@ public class Server extends ServerBootstrap {
     protected List<Module> getCommandBindings(FeatureFlags featureFlags) {
         final ImmutableList.Builder<Module> modules = ImmutableList.builder();
         modules.add(
-                new VersionAwareStorageModule(),
+                new VersionAwareStorageModule(configuration),
                 new ConfigurationModule(configuration),
                 new MongoDBModule(),
                 new ServerBindings(configuration, isMigrationCommand()),
@@ -203,14 +208,18 @@ public class Server extends ServerBootstrap {
                 new MapWidgetModule(),
                 new SearchFiltersModule(),
                 new ScopedEntitiesModule(),
-                new ScriptingApiModule(featureFlags),
+                new ScriptingApiModule(),
                 new StreamsModule(),
-                new TracingModule()
+                new TracingModule(),
+                new UnitsModule(),
+                new DataTieringModule(),
+                new DatanodeMigrationBindings(),
+                new CaModule(),
+                new TelemetryModule()
         );
 
-        if (featureFlags.isOn(FIELD_TYPES_MANAGEMENT_FEATURE)) {
-            modules.add(new FieldTypeManagementModule());
-        }
+        modules.add(new FieldTypeManagementModule());
+
         return modules.build();
     }
 
@@ -241,14 +250,17 @@ public class Server extends ServerBootstrap {
     @Override
     protected void startNodeRegistration(Injector injector) {
         // Register this node.
-        final NodeService nodeService = injector.getInstance(NodeService.class);
+        final NodeService<ServerNodeDto> nodeService = injector.getInstance(new Key<>() {});
         final ServerStatus serverStatus = injector.getInstance(ServerStatus.class);
         final ActivityWriter activityWriter = injector.getInstance(ActivityWriter.class);
         final LeaderElectionService leaderElectionService = injector.getInstance(LeaderElectionService.class);
-        nodeService.registerServer(serverStatus.getNodeId().toString(),
-                leaderElectionService.isLeader(),
-                httpConfiguration.getHttpPublishUri(),
-                Tools.getLocalCanonicalHostname());
+        nodeService.registerServer(
+                ServerNodeDto.Builder.builder()
+                        .setId(serverStatus.getNodeId().toString())
+                        .setLeader(leaderElectionService.isLeader())
+                        .setTransportAddress(httpConfiguration.getHttpPublishUri().toString())
+                        .setHostname(Tools.getLocalCanonicalHostname())
+                        .build());
         serverStatus.setLocalMode(isLocal());
         if (leaderElectionService.isLeader() && !nodeService.isOnlyLeader(serverStatus.getNodeId())) {
             LOG.warn("Detected another leader in the cluster. Retrying in {} seconds to make sure it is not "
@@ -333,7 +345,7 @@ public class Server extends ServerBootstrap {
                             GracefulShutdown gracefulShutdown,
                             AuditEventSender auditEventSender,
                             Journal journal,
-                            @Named("LeaderElectionService") Service leaderElectionService) {
+                            LeaderElectionService leaderElectionService) {
             this.activityWriter = activityWriter;
             this.serviceManager = serviceManager;
             this.nodeId = nodeId;

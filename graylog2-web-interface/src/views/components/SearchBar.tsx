@@ -15,13 +15,14 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import * as React from 'react';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import * as Immutable from 'immutable';
 import { Field } from 'formik';
 import styled from 'styled-components';
 import moment from 'moment';
 
+import useView from 'views/hooks/useView';
 import { useStore } from 'stores/connect';
 import { Spinner } from 'components/common';
 import SearchButton from 'views/components/searchbar/SearchButton';
@@ -47,7 +48,6 @@ import PluggableSearchBarControls from 'views/components/searchbar/PluggableSear
 import useParameters from 'views/hooks/useParameters';
 import ValidateOnParameterChange from 'views/components/searchbar/ValidateOnParameterChange';
 import type { SearchBarControl, HandlerContext } from 'views/types';
-import { SearchConfigStore } from 'views/stores/SearchConfigStore';
 import useUserDateTime from 'hooks/useUserDateTime';
 import {
   SEARCH_BAR_GAP,
@@ -65,6 +65,10 @@ import useAppDispatch from 'stores/useAppDispatch';
 import { execute } from 'views/logic/slices/searchExecutionSlice';
 import { updateQuery } from 'views/logic/slices/viewSlice';
 import useHandlerContext from 'views/components/useHandlerContext';
+import QueryHistoryButton from 'views/components/searchbar/QueryHistoryButton';
+import type { Editor } from 'views/components/searchbar/queryinput/ace-types';
+import useIsLoading from 'views/hooks/useIsLoading';
+import useSearchConfiguration from 'hooks/useSearchConfiguration';
 
 import SearchBarForm from './searchbar/SearchBarForm';
 
@@ -132,11 +136,13 @@ type Props = {
 };
 
 const SearchBar = ({ onSubmit = defaultProps.onSubmit }: Props) => {
+  const editorRef = useRef<Editor>(null);
+  const view = useView();
   const availableStreams = useStore(StreamsStore, ({ streams }) => streams.map((stream) => ({
     key: stream.title,
     value: stream.id,
   })));
-  const { searchesClusterConfig: config } = useStore(SearchConfigStore);
+  const { config } = useSearchConfiguration();
   const { userTimezone } = useUserDateTime();
   const { parameters } = useParameters();
   const currentQuery = useCurrentQuery();
@@ -147,6 +153,7 @@ const SearchBar = ({ onSubmit = defaultProps.onSubmit }: Props) => {
   const _onSubmit = useCallback((values: SearchBarFormValues) => onSubmit(dispatch, values, pluggableSearchBarControls, currentQuery),
     [currentQuery, dispatch, onSubmit, pluggableSearchBarControls]);
   const handlerContext = useHandlerContext();
+  const isLoadingExecution = useIsLoading();
 
   if (!currentQuery || !config) {
     return <Spinner />;
@@ -175,7 +182,7 @@ const SearchBar = ({ onSubmit = defaultProps.onSubmit }: Props) => {
                 setFieldValue,
                 validateForm,
               }) => {
-                const disableSearchSubmit = isSubmitting || isValidating || !isValid;
+                const disableSearchSubmit = isSubmitting || isValidating || !isValid || isLoadingExecution;
 
                 return (
                   <>
@@ -200,14 +207,14 @@ const SearchBar = ({ onSubmit = defaultProps.onSubmit }: Props) => {
                             )}
                           </Field>
 
-                          <RefreshControls />
+                          <RefreshControls disable={!isValid} />
                         </StreamsAndRefresh>
                       </TimeRangeRow>
                       <SearchQueryRow>
                         <SearchButtonAndQuery>
                           <SearchButton disabled={disableSearchSubmit}
                                         dirty={dirty}
-                                        displaySpinner={isSubmitting} />
+                                        displaySpinner={isSubmitting || isLoadingExecution} />
                           <SearchInputAndValidationContainer>
                             <Field name="queryString">
                               {({ field: { name, value, onChange }, meta: { error } }) => (
@@ -216,6 +223,8 @@ const SearchBar = ({ onSubmit = defaultProps.onSubmit }: Props) => {
                                     <PluggableCommands usage="search_query">
                                       {(customCommands) => (
                                         <QueryInput value={value}
+                                                    ref={editorRef}
+                                                    view={view}
                                                     timeRange={values.timerange}
                                                     streams={values.streams}
                                                     name={name}
@@ -236,6 +245,7 @@ const SearchBar = ({ onSubmit = defaultProps.onSubmit }: Props) => {
                             </Field>
 
                             <QueryValidation />
+                            <QueryHistoryButton editorRef={editorRef} />
                           </SearchInputAndValidationContainer>
                         </SearchButtonAndQuery>
                         {!editing && <SearchActionsMenu />}

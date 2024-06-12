@@ -25,10 +25,10 @@ import { Select } from 'components/common';
 import { Clearfix, Col, ControlLabel, FormGroup, HelpBlock, Row } from 'components/bootstrap';
 import { HelpPanel } from 'components/event-definitions/common/HelpPanel';
 import type User from 'logic/users/User';
-import { getPathnameWithoutId } from 'util/URLUtils';
 import useSendTelemetry from 'logic/telemetry/useSendTelemetry';
 import useLocation from 'routing/useLocation';
 import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
+import { getPathnameWithoutId } from 'util/URLUtils';
 
 import styles from './EventConditionForm.css';
 
@@ -48,9 +48,10 @@ type Props = {
   },
   currentUser: User,
   onChange: (name: string, newConfig: EventDefinition['config']) => void,
+  canEdit: boolean,
 }
 
-const EventConditionForm = ({ action, entityTypes, eventDefinition, validation, currentUser, onChange }: Props) => {
+const EventConditionForm = ({ action, entityTypes, eventDefinition, validation, currentUser, onChange, canEdit }: Props) => {
   const { pathname } = useLocation();
   const sendTelemetry = useSendTelemetry();
 
@@ -108,9 +109,12 @@ const EventConditionForm = ({ action, entityTypes, eventDefinition, validation, 
   };
 
   const disabledSelect = () => !formattedEventDefinitionTypes().some((edt) => eventDefinition.config.type === edt.value) && action === 'edit';
+  const onlyFilters = () => eventDefinition._scope === 'ILLUMINATE' && action === 'edit';
+  const isSigma = () => eventDefinition.config.type === 'sigma-v1' && action === 'edit';
 
   const eventDefinitionType = getConditionPlugin(eventDefinition.config.type);
   const isSystemEventDefinition = eventDefinition.config.type === SYSTEM_EVENT_DEFINITION_TYPE;
+  const canEditCondition = canEdit && !isSystemEventDefinition;
 
   const eventDefinitionTypeComponent = eventDefinitionType?.formComponent
     ? React.createElement<React.ComponentProps<any>>(eventDefinitionType.formComponent, {
@@ -129,9 +133,9 @@ const EventConditionForm = ({ action, entityTypes, eventDefinition, validation, 
       <Col md={7} lg={6}>
         <h2 className={commonStyles.title}>Event Condition</h2>
 
-        {isSystemEventDefinition ? (
+        {!canEditCondition ? (
           <p>
-            The conditions of system notification event definitions cannot be edited.
+            The conditions of this event definition type cannot be edited.
           </p>
         ) : (
           <>
@@ -139,14 +143,15 @@ const EventConditionForm = ({ action, entityTypes, eventDefinition, validation, 
               Configure how Graylog should create Events of this kind. You can later use those Events as input on other
               Conditions, making it possible to build powerful Conditions based on others.
             </p>
-            <FormGroup controlId="event-definition-priority" validationState={validation.errors.config ? 'error' : null}>
-              <ControlLabel>Condition Type</ControlLabel>
+            <FormGroup validationState={validation.errors.config ? 'error' : null}>
+              <ControlLabel htmlFor="event-condition-type-select">Condition Type</ControlLabel>
               <Select placeholder="Select a Condition Type"
+                      inputId="event-condition-type-select"
                       options={formattedEventDefinitionTypes()}
                       value={eventDefinition.config.type}
                       onChange={handleEventDefinitionTypeChange}
                       clearable={false}
-                      disabled={disabledSelect()}
+                      disabled={disabledSelect() || onlyFilters() || isSigma()}
                       required />
               <HelpBlock>
                 {get(validation, 'errors.config[0]', 'Choose the type of Condition for this Event.')}
@@ -156,7 +161,7 @@ const EventConditionForm = ({ action, entityTypes, eventDefinition, validation, 
         )}
       </Col>
 
-      {!isSystemEventDefinition && !disabledSelect() && (
+      {canEditCondition && !disabledSelect() && (
         <>
           <Col md={5} lg={5} lgOffset={1}>
             <HelpPanel className={styles.conditionTypesInfo}

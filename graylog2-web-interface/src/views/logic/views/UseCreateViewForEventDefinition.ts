@@ -17,7 +17,7 @@
 
 import { useMemo } from 'react';
 
-import type { EventDefinition } from 'logic/alerts/types';
+import type { EventDefinition } from 'components/event-definitions/event-definitions-types';
 import type { EventDefinitionAggregation } from 'hooks/useEventDefinition';
 import type { ElasticsearchQueryString, RelativeTimeRangeStartOnly } from 'views/logic/queries/Query';
 import { ViewGenerator } from 'views/logic/views/UseCreateViewForEvent';
@@ -42,8 +42,10 @@ const useCreateViewForEventDefinition = (
 
   const groupBy = eventDefinition?.config?.group_by ?? [];
 
+  const searchFilters = eventDefinition?.config?.filters ?? [];
+
   return useMemo(
-    () => ViewGenerator({ streams, timeRange, queryString, aggregations, groupBy, queryParameters }),
+    () => ViewGenerator({ streams, timeRange, queryString, aggregations, groupBy, queryParameters, searchFilters }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );

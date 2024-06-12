@@ -99,7 +99,7 @@ const TokenList = ({ creatingToken, deletingToken, onCreate, onDelete, tokens }:
             <p>This is your new token. Make sure to copy it now, you will not be able to see it again.</p>
             <pre>
               {createdToken.token}
-              <StyledCopyTokenButton title={<Icon name="clipboard" fixedWidth />} text={createdToken.token} bsSize="xsmall" />
+              <StyledCopyTokenButton title={<Icon name="content_copy" />} text={createdToken.token} bsSize="xsmall" />
             </pre>
             <Button bsStyle="primary" onClick={() => setCreatedToken(undefined)}>Done</Button>
           </Panel.Body>
@@ -133,7 +133,7 @@ const TokenList = ({ creatingToken, deletingToken, onCreate, onDelete, tokens }:
                 <Col md={3} className="text-right">
                   <Button bsSize="xsmall"
                           disabled={deletingToken === token.id}
-                          bsStyle="primary"
+                          bsStyle="danger"
                           onClick={deleteToken(token)}>
                     {deletingToken === token.id ? <Spinner text="Deleting..." /> : 'Delete'}
                   </Button>

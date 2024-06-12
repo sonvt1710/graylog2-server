@@ -21,6 +21,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Iterables;
+import jakarta.inject.Inject;
 import org.graylog.shaded.opensearch2.org.opensearch.OpenSearchException;
 import org.graylog.shaded.opensearch2.org.opensearch.action.bulk.BulkItemResponse;
 import org.graylog.shaded.opensearch2.org.opensearch.action.bulk.BulkRequest;
@@ -31,7 +32,7 @@ import org.graylog.shaded.opensearch2.org.opensearch.action.index.IndexRequest;
 import org.graylog.shaded.opensearch2.org.opensearch.client.indices.AnalyzeRequest;
 import org.graylog.shaded.opensearch2.org.opensearch.client.indices.AnalyzeResponse;
 import org.graylog.shaded.opensearch2.org.opensearch.common.xcontent.XContentType;
-import org.graylog.shaded.opensearch2.org.opensearch.rest.RestStatus;
+import org.graylog.shaded.opensearch2.org.opensearch.core.rest.RestStatus;
 import org.graylog2.indexer.messages.ChunkedBulkIndexer;
 import org.graylog2.indexer.messages.DocumentNotFoundException;
 import org.graylog2.indexer.messages.Indexable;
@@ -43,10 +44,10 @@ import org.graylog2.indexer.messages.IndexingSuccess;
 import org.graylog2.indexer.messages.Messages;
 import org.graylog2.indexer.messages.MessagesAdapter;
 import org.graylog2.indexer.results.ResultMessage;
+import org.graylog2.indexer.results.ResultMessageFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Inject;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -69,13 +70,16 @@ public class MessagesAdapterOS2 implements MessagesAdapter {
     static final String ILLEGAL_ARGUMENT_EXCEPTION = "illegal_argument_exception";
     static final String NO_WRITE_INDEX_DEFINED_FOR_ALIAS = "no write index is defined for alias";
 
+    private final ResultMessageFactory resultMessageFactory;
     private final OpenSearchClient client;
     private final Meter invalidTimestampMeter;
     private final ChunkedBulkIndexer chunkedBulkIndexer;
     private final ObjectMapper objectMapper;
 
     @Inject
-    public MessagesAdapterOS2(OpenSearchClient openSearchClient, MetricRegistry metricRegistry, ChunkedBulkIndexer chunkedBulkIndexer, ObjectMapper objectMapper) {
+    public MessagesAdapterOS2(ResultMessageFactory resultMessageFactory, OpenSearchClient openSearchClient,
+                              MetricRegistry metricRegistry, ChunkedBulkIndexer chunkedBulkIndexer, ObjectMapper objectMapper) {
+        this.resultMessageFactory = resultMessageFactory;
         this.client = openSearchClient;
         this.invalidTimestampMeter = metricRegistry.meter(name(Messages.class, "invalid-timestamps"));
         this.chunkedBulkIndexer = chunkedBulkIndexer;
@@ -92,7 +96,7 @@ public class MessagesAdapterOS2 implements MessagesAdapter {
             throw new DocumentNotFoundException(index, messageId);
         }
 
-        return ResultMessage.parseFromSource(messageId, index, result.getSource());
+        return resultMessageFactory.parseFromSource(messageId, index, result.getSource());
     }
 
     @Override

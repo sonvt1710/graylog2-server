@@ -22,7 +22,7 @@ import type { Reducer, AnyAction } from '@reduxjs/toolkit';
 import type Widget from 'views/logic/widgets/Widget';
 import type { ActionDefinition } from 'views/components/actions/ActionHandler';
 import type { VisualizationComponent } from 'views/components/aggregationbuilder/AggregationBuilder';
-import type { WidgetActionType } from 'views/components/widgets/Types';
+import type { WidgetActionType, WidgetMenuActionComponentProps } from 'views/components/widgets/Types';
 import type { Creator } from 'views/components/sidebar/create/AddWidgetButton';
 import type { ViewHook } from 'views/logic/hooks/ViewHook';
 import type WidgetConfig from 'views/logic/widgets/WidgetConfig';
@@ -53,9 +53,11 @@ import type SearchMetadata from 'views/logic/search/SearchMetadata';
 import type { AppDispatch } from 'stores/useAppDispatch';
 import type SearchResult from 'views/logic/SearchResult';
 import type { WidgetMapping } from 'views/logic/views/types';
-import type { Event } from 'components/events/events/types';
 import type Parameter from 'views/logic/parameters/Parameter';
 import type { UndoRedoState } from 'views/logic/slices/undoRedoSlice';
+import type { SearchExecutors } from 'views/logic/slices/searchExecutionSlice';
+import type { JobIds } from 'views/stores/SearchJobs';
+import type { FilterComponents, Attributes } from 'views/components/widgets/overview-configuration/filters/types';
 
 export type ArrayElement<ArrayType extends readonly unknown[]> =
   ArrayType extends readonly (infer ElementType)[] ? ElementType : never;
@@ -83,7 +85,7 @@ export interface EditWidgetComponentProps<Config extends WidgetConfig = WidgetCo
 }
 
 export interface WidgetResults {
- [key: string]: Result,
+  [key: string]: Result,
 }
 
 export interface WidgetComponentProps<Config extends WidgetConfig = WidgetConfig, Results = WidgetResults> {
@@ -188,17 +190,21 @@ interface ExportFormat {
   fileExtension: string;
 }
 
+export interface SystemConfigurationComponentProps {
+  config: any,
+  updateConfig: (newConfig: any) => any,
+}
+
 export interface SystemConfiguration {
   configType: string;
-  component: React.ComponentType<{
-    config: any,
-    updateConfig: (newConfig: any) => any,
-  }>;
+  displayName?: string;
+  component: React.ComponentType<SystemConfigurationComponentProps>;
 }
 
 export type SearchTypeResult = {
   type: string,
-  effective_timerange: TimeRange,
+  effective_timerange: AbsoluteTimeRange,
+  total: number,
 };
 
 export type MessageResult = {
@@ -236,10 +242,10 @@ export type MessagePreviewOption = {
 }
 
 type ExternalActionsHookData = {
-      error: Error | null;
-      externalValueActions: Array<ActionDefinition> | null;
-      isLoading: boolean;
-      isError: boolean
+  error: Error | null;
+  externalValueActions: Array<ActionDefinition> | null;
+  isLoading: boolean;
+  isError: boolean
 }
 
 type MessageAugmentation = {
@@ -256,8 +262,23 @@ type DashboardActionComponentProps = {
   modalRef: () => unknown,
 }
 
+type EventWidgetActionComponentProps = {
+  eventId: string,
+  modalRef: () => unknown,
+}
+
 type DashboardActionModalProps = {
   dashboard: View,
+  ref: React.Ref<unknown>,
+}
+
+type EventActionModalProps = {
+  eventId: string,
+  ref: React.Ref<unknown>,
+}
+
+type SearchActionModalProps = {
+  search: View,
   ref: React.Ref<unknown>,
 }
 
@@ -266,10 +287,25 @@ type AssetInformationComponentProps = {
   addToQuery: (id: string) => void;
 }
 
+type SearchAction = {
+  component: React.ComponentType<SearchActionComponentProps>,
+  key: string,
+  modals: Array<{ key: string, component: React.ComponentType<SearchActionModalProps> }>,
+  useCondition: () => boolean,
+};
+
 type DashboardAction = {
   key: string,
   component: React.ComponentType<DashboardActionComponentProps>,
   modal?: React.ComponentType<DashboardActionModalProps>,
+  useCondition?: () => boolean,
+}
+
+type EventWidgetAction = {
+  key: string,
+  component: React.ComponentType<EventWidgetActionComponentProps>,
+  modal?: React.ComponentType<EventActionModalProps>,
+  useCondition?: () => boolean,
 }
 
 type AssetInformation = {
@@ -277,7 +313,7 @@ type AssetInformation = {
 }
 
 type EventActionComponentProps = {
-  event: Event,
+  eventId: string,
 }
 
 type MessageActionComponentProps = {
@@ -287,7 +323,8 @@ type MessageActionComponentProps = {
 
 type SearchActionComponentProps = {
   loaded: boolean,
-  view: View,
+  search: View,
+  modalRefs?: { [key: string]: () => unknown },
 }
 
 export type CopyParamsToView = (sourceView: View, targetView: View) => View;
@@ -316,11 +353,11 @@ export interface SearchBarControl {
   id: string;
   onSearchSubmit?: <T extends Query | undefined>(values: CombinedSearchBarFormValues, dispatch: AppDispatch, currentQuery?: T) => Promise<T>,
   onDashboardWidgetSubmit: (values: CombinedSearchBarFormValues, dispatch: AppDispatch, currentWidget: Widget) => Promise<Widget | void>,
-  onValidate?: (values: CombinedSearchBarFormValues, context: HandlerContext) => FormikErrors<{}>,
+  onValidate?: (values: CombinedSearchBarFormValues, context?: HandlerContext) => FormikErrors<{}>,
   placement: 'left' | 'right';
   useInitialSearchValues?: (currentQuery?: Query) => ({ [key: string]: any }),
   useInitialDashboardWidgetValues?: (currentWidget: Widget) => ({ [key: string]: any }),
-  validationPayload?: (values: CombinedSearchBarFormValues, context: HandlerContext) => ({ [key: string]: any }),
+  validationPayload?: (values: CombinedSearchBarFormValues, context?: HandlerContext) => ({ [key: string]: any }),
 }
 
 export type SearchFilter = {
@@ -359,11 +396,13 @@ export type SearchExecutionResult = {
   widgetMapping: WidgetMapping,
 };
 
+export type JobIdsState = JobIds | null;
 export interface SearchExecution {
   executionState: SearchExecutionState;
   result: SearchExecutionResult;
   isLoading: boolean;
   widgetsToSearch: Array<string>,
+  jobIds?: JobIds | null,
 }
 
 export interface SearchMetadataState {
@@ -376,6 +415,10 @@ export interface RootState {
   searchExecution: SearchExecution;
   searchMetadata: SearchMetadataState;
   undoRedo: UndoRedoState
+}
+
+export interface ExtraArguments {
+  searchExecutors: SearchExecutors;
 }
 
 export type GetState = () => RootState;
@@ -410,6 +453,7 @@ declare module 'graylog-web-plugin/plugin' {
     'views.components.assetInformationActions'?: Array<AssetInformation>;
     'views.components.dashboardActions'?: Array<DashboardAction>;
     'views.components.eventActions'?: Array<{
+      useCondition: () => boolean,
       component: React.ComponentType<EventActionComponentProps>,
       key: string,
     }>;
@@ -420,11 +464,18 @@ declare module 'graylog-web-plugin/plugin' {
     'views.components.widgets.messageTable.messageActions'?: Array<{
       component: React.ComponentType<MessageActionComponentProps>,
       key: string,
+      useCondition: () => boolean,
     }>;
-    'views.components.searchActions'?: Array<{
-      component: React.ComponentType<SearchActionComponentProps>,
+    'views.components.widgets.events.filterComponents'?: FilterComponents;
+    'views.components.widgets.events.attributes'?: Attributes;
+    'views.components.widgets.events.detailsComponent'?: Array<{
+      component: React.ComponentType<{ eventId: string }>,
+      useCondition: () => boolean,
       key: string,
     }>;
+    'views.components.widgets.events.actions'?: Array<EventWidgetAction>;
+    'views.components.widgets.exportAction'?: Array<() => React.ComponentType<WidgetMenuActionComponentProps> | null>;
+    'views.components.searchActions'?: Array<SearchAction>;
     'views.components.searchBar'?: Array<() => SearchBarControl | null>;
     'views.components.saveViewForm'?: Array<() => SaveViewControls | null>;
     'views.elements.header'?: Array<React.ComponentType>;
@@ -447,19 +498,5 @@ declare module 'graylog-web-plugin/plugin' {
     'views.queryInput.commandContextProviders'?: Array<CustomCommandContextProvider<any>>,
     visualizationTypes?: Array<VisualizationType<any>>;
     widgetCreators?: Array<WidgetCreator>;
-  }
-}
-export interface ViewActions {
-  save: {
-    isShown: boolean,
-  };
-  saveAs: {
-    isShown: boolean,
-  };
-  share: {
-    isShown: boolean,
-  }
-  actionsDropdown: {
-    isShown: boolean,
   }
 }

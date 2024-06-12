@@ -18,26 +18,14 @@ import React from 'react';
 import { render, screen, waitFor } from 'wrappedTestingLibrary';
 import userEvent from '@testing-library/user-event';
 
-import { StoreMock as MockStore } from 'helpers/mocking';
-import mockSearchClusterConfig from 'fixtures/searchClusterConfig';
-
 import OriginalTimeRangePicker from './TimeRangePicker';
 
-jest.mock('views/stores/SearchConfigStore', () => ({
-  SearchConfigActions: {
-    refresh: jest.fn(() => Promise.resolve()),
-  },
-  SearchConfigStore: MockStore(
-    'get',
-    'refresh',
-    ['getInitialState', () => ({ searchesClusterConfig: mockSearchClusterConfig })],
-  ),
-}));
-
 jest.mock('stores/tools/ToolsStore', () => ({}));
+jest.mock('hooks/useHotkey', () => jest.fn());
 
 describe('TimeRangePicker relative time range', () => {
   const defaultProps = {
+    show: true,
     currentTimeRange: {
       type: 'relative',
       from: 300,
@@ -50,7 +38,9 @@ describe('TimeRangePicker relative time range', () => {
   } as const;
 
   const TimeRangePicker = (allProps: Partial<React.ComponentProps<typeof TimeRangePicker>>) => (
-    <OriginalTimeRangePicker {...defaultProps} {...allProps} />
+    <OriginalTimeRangePicker {...defaultProps} {...allProps}>
+      <button type="button">Open</button>
+    </OriginalTimeRangePicker>
   );
 
   const getSubmitButton = () => screen.getByRole('button', { name: /Update time range/i });
@@ -101,6 +91,8 @@ describe('TimeRangePicker relative time range', () => {
 
     await userEvent.type(fromRangeValueInput, '{backspace}7');
     await userEvent.type(toRangeValueInput, '{backspace}6');
+
+    await waitFor(() => expect(submitButton).not.toBeDisabled());
     await userEvent.click(submitButton);
 
     await waitFor(() => expect(setCurrentTimeRangeStub).toHaveBeenCalledTimes(1));

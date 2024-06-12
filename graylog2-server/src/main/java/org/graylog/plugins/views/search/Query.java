@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import com.google.common.graph.MutableGraph;
 import com.google.common.graph.Traverser;
 import org.graylog.plugins.views.search.elasticsearch.ElasticsearchQueryString;
 import org.graylog.plugins.views.search.engine.BackendQuery;
@@ -40,11 +41,12 @@ import org.graylog.plugins.views.search.searchfilters.model.UsedSearchFilter;
 import org.graylog.plugins.views.search.searchfilters.model.UsesSearchFilters;
 import org.graylog2.contentpacks.ContentPackable;
 import org.graylog2.contentpacks.EntityDescriptorIds;
-import org.graylog2.contentpacks.model.ModelTypes;
+import org.graylog2.contentpacks.model.entities.EntityDescriptor;
 import org.graylog2.contentpacks.model.entities.QueryEntity;
 import org.graylog2.plugin.indexer.searches.timeranges.InvalidRangeParametersException;
 import org.graylog2.plugin.indexer.searches.timeranges.RelativeRange;
 import org.graylog2.plugin.indexer.searches.timeranges.TimeRange;
+import org.joda.time.DateTime;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,6 +62,7 @@ import java.util.stream.StreamSupport;
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.collect.ImmutableSortedSet.of;
 import static java.util.stream.Collectors.toSet;
+import static org.graylog2.contentpacks.facades.StreamReferenceFacade.getStreamEntityIdOrThrow;
 
 @AutoValue
 @JsonAutoDetect
@@ -125,15 +128,23 @@ public abstract class Query implements ContentPackable<QueryEntity>, UsesSearchF
             return this;
         }
 
-        if (state.timerange().isPresent() || state.query().isPresent() || !state.searchTypes().isEmpty() || !state.keepSearchTypes().isEmpty() || !state.keepQueries().isEmpty()) {
+        if (state.timerange().isPresent()
+                || state.query().isPresent()
+                || !state.searchTypes().isEmpty()
+                || !state.keepSearchTypes().isEmpty()
+                || !state.keepQueries().isEmpty()
+                || state.now().isPresent()) {
             final Builder builder = toBuilder();
 
             if (state.timerange().isPresent() || state.query().isPresent()) {
                 final GlobalOverride.Builder globalOverrideBuilder = globalOverride().map(GlobalOverride::toBuilder)
                         .orElseGet(GlobalOverride::builder);
                 state.timerange().ifPresent(timeRange -> {
-                    globalOverrideBuilder.timerange(timeRange);
-                    builder.timerange(timeRange);
+                    final var timerangeWithNow = state.now()
+                            .map(timeRange::withReferenceDate)
+                            .orElse(timeRange);
+                    globalOverrideBuilder.timerange(timerangeWithNow);
+                    builder.timerange(timerangeWithNow);
                 });
 
                 state.query().ifPresent(query -> {
@@ -153,6 +164,7 @@ public abstract class Query implements ContentPackable<QueryEntity>, UsesSearchF
 
                 builder.searchTypes(ImmutableSet.copyOf(searchTypesWithOverrides));
             }
+
             return builder.build();
         }
         return this;
@@ -233,6 +245,15 @@ public abstract class Query implements ContentPackable<QueryEntity>, UsesSearchF
                 .anyMatch(id -> id.equals(searchTypeId));
     }
 
+    public Query withReferenceDate(DateTime now) {
+        return toBuilder()
+                .timerange(timerange().withReferenceDate(now))
+                .searchTypes(searchTypes().stream()
+                        .map(s -> s.withReferenceDate(now))
+                        .collect(toSet()))
+                .build();
+    }
+
     @AutoValue.Builder
     @JsonPOJOBuilder(withPrefix = "")
     public abstract static class Builder {
@@ -290,8 +311,7 @@ public abstract class Query implements ContentPackable<QueryEntity>, UsesSearchF
                             .map(filter -> {
                                 if (filter.type().equals(StreamFilter.NAME)) {
                                     final StreamFilter streamFilter = (StreamFilter) filter;
-                                    final String streamId = entityDescriptorIds.
-                                            getOrThrow(streamFilter.streamId(), ModelTypes.STREAM_V1);
+                                    final String streamId = getStreamEntityIdOrThrow(streamFilter.streamId(), entityDescriptorIds);
                                     return streamFilter.toBuilder().streamId(streamId).build();
                                 }
                                 return filter;
@@ -307,11 +327,16 @@ public abstract class Query implements ContentPackable<QueryEntity>, UsesSearchF
                 .searchTypes(searchTypes().stream().map(s -> s.toContentPackEntity(entityDescriptorIds))
                         .collect(Collectors.toSet()))
                 .filter(shallowMappedFilter(entityDescriptorIds))
-                .filters(filters())
+                .filters(filters().stream().map(filter -> filter.toContentPackEntity(entityDescriptorIds)).toList())
                 .query(query())
                 .id(id())
                 .globalOverride(globalOverride().orElse(null))
                 .timerange(timerange())
                 .build();
+    }
+
+    @Override
+    public void resolveNativeEntity(EntityDescriptor entityDescriptor, MutableGraph<EntityDescriptor> mutableGraph) {
+        filters().forEach(filter -> filter.resolveNativeEntity(entityDescriptor, mutableGraph));
     }
 }

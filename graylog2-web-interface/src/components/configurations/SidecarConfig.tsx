@@ -87,9 +87,9 @@ const SidecarConfig = () => {
 
   const expirationThresholdValidator = (milliseconds: number) => milliseconds >= 60 * 1000;
 
-  const durationMilliseconds = (duration: string) => ISODurationUtils.isValidDuration(duration, (milliseconds) => !!milliseconds);
+  const durationMilliseconds = (duration: string) => ISODurationUtils.isValidDuration(duration, (milliseconds) => milliseconds);
 
-  const updateIntervalValidator = (milliseconds) => {
+  const updateIntervalValidator = (milliseconds: number) => {
     const inactiveMilliseconds = durationMilliseconds(formConfig.sidecar_inactive_threshold);
     const expirationMilliseconds = durationMilliseconds(formConfig.sidecar_expiration_threshold);
 
@@ -149,7 +149,7 @@ const SidecarConfig = () => {
                             label="Update interval (as ISO8601 Duration)"
                             help="Time between Sidecar update requests."
                             validator={updateIntervalValidator}
-                            errorText="invalid (min: 1 second, lower: inactive/expiration threshold)"
+                            errorText="invalid (min: 1 second, but less than Inactive threshold)"
                             required />
         </fieldset>
         <Input type="checkbox"

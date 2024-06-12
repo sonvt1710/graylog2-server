@@ -14,8 +14,9 @@
  * along with this program. If not, see
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
-import MessageFieldsFilter from 'logic/message/MessageFieldsFilter';
+import { RESERVED_FIELDS } from 'views/Constants';
+import isFilteredField from 'views/logic/IsFilteredField';
 
-const isReservedField = (fieldName: string) => MessageFieldsFilter.FILTERED_FIELDS.includes(fieldName);
+const isReservedField = (fieldName: string) => RESERVED_FIELDS.includes(fieldName) || isFilteredField(fieldName);
 
 export default isReservedField;

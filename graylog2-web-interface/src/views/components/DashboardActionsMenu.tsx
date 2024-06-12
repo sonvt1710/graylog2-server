@@ -16,9 +16,10 @@
  */
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 
+import useHistory from 'routing/useHistory';
 import { isPermitted } from 'util/PermissionsMixin';
 import AppConfig from 'util/AppConfig';
-import { DropdownButton, MenuItem, Button, ButtonGroup } from 'components/bootstrap';
+import { DropdownButton, MenuItem, ButtonGroup } from 'components/bootstrap';
 import { Icon, ShareButton } from 'components/common';
 import ExportModal from 'views/components/export/ExportModal';
 import DebugOverlay from 'views/components/DebugOverlay';
@@ -35,16 +36,13 @@ import {
 import useSaveViewFormControls from 'views/hooks/useSaveViewFormControls';
 import useView from 'views/hooks/useView';
 import useIsNew from 'views/hooks/useIsNew';
-import useHasUndeclaredParameters from 'views/logic/parameters/useHasUndeclaredParameters';
 import useAppDispatch from 'stores/useAppDispatch';
 import usePluginEntities from 'hooks/usePluginEntities';
 import { updateView } from 'views/logic/slices/viewSlice';
-import OnSaveViewAction from 'views/logic/views/OnSaveViewAction';
-import useHistory from 'routing/useHistory';
-import SaveViewButton from 'views/components/searchbar/SaveViewButton';
-import useHotkey from 'hooks/useHotkey';
 import useSendTelemetry from 'logic/telemetry/useSendTelemetry';
 import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
+import SaveDashboardButton from 'views/components/searchbar/SaveDashboardButton';
+import SaveAsDashboardButton from 'views/components/searchbar/SaveAsDashboardButton';
 
 import DashboardPropertiesModal from './dashboard/DashboardPropertiesModal';
 import BigDisplayModeConfiguration from './dashboard/BigDisplayModeConfiguration';
@@ -56,18 +54,13 @@ const DashboardActionsMenu = () => {
   const view = useView();
   const isNewView = useIsNew();
   const currentUser = useCurrentUser();
-  const hasUndeclaredParameters = useHasUndeclaredParameters();
+
   const {
     viewActions: {
-      save: {
-        isShown: showSaveButton,
-      }, saveAs: {
-        isShown: showSaveNewButton,
-      }, share: {
-        isShown: showShareButton,
-      }, actionsDropdown: {
-        isShown: showDropDownButton,
-      },
+      save: { isShown: showSaveButton },
+      saveAs: { isShown: showSaveNewButton },
+      share: { isShown: showShareButton },
+      actionsDropdown: { isShown: showDropDownButton },
     },
   } = useSearchPageLayout();
   const pluggableSaveViewControls = useSaveViewFormControls();
@@ -122,15 +115,7 @@ const DashboardActionsMenu = () => {
 
     return dispatch(onSaveNewDashboard(newDashboard, history));
   }, [currentUser.permissions, dispatch, history, pluggableSaveViewControls, sendTelemetry, view.id]);
-  const _onSaveView = useCallback(() => {
-    sendTelemetry(TELEMETRY_EVENT_TYPE.DASHBOARD_ACTION.DASHBOARD_SAVED, {
-      app_pathname: 'dashboard',
-      app_section: 'dashboard',
-      app_action_value: 'dashboard-save',
-    });
 
-    return dispatch(OnSaveViewAction(view));
-  }, [dispatch, sendTelemetry, view]);
   const _onUpdateView = useCallback((updatedView) => {
     sendTelemetry(TELEMETRY_EVENT_TYPE.DASHBOARD_ACTION.DASHBOARD_UPDATED, {
       app_pathname: 'dashboard',
@@ -141,26 +126,15 @@ const DashboardActionsMenu = () => {
     return dispatch(updateView(updatedView));
   }, [dispatch, sendTelemetry]);
 
-  useHotkey({
-    actionKey: 'save',
-    callback: () => _onSaveView(),
-    scope: 'dashboard',
-    telemetryAppPathname: 'search',
-  });
-
   return (
     <ButtonGroup>
       {showSaveButton && (
-        <SaveViewButton title="Save dashboard"
-                        onClick={_onSaveView}
-                        disabled={isNewView || hasUndeclaredParameters || !allowedToEdit} />
+        <SaveDashboardButton userIsAllowedToEdit={allowedToEdit}
+                             openSaveAsModal={() => setSaveNewDashboardOpen(true)} />
       )}
       {showSaveNewButton && (
-        <Button onClick={() => setSaveNewDashboardOpen(true)}
-                disabled={hasUndeclaredParameters}
-                title="Save as new dashboard">
-          <Icon name="copy" /> Save as
-        </Button>
+        <SaveAsDashboardButton onClick={() => setSaveNewDashboardOpen(true)}
+                               openSaveAsModal={() => setSaveNewDashboardOpen(true)} />
       )}
       {showShareButton && (
         <ShareButton entityType="dashboard"
@@ -170,9 +144,11 @@ const DashboardActionsMenu = () => {
                      disabledInfo={isNewView && 'Only saved dashboards can be shared.'} />
       )}
       {showDropDownButton && (
-        <DropdownButton title={<Icon name="ellipsis-h" title="More Actions" />}
+        <DropdownButton title={<Icon name="more_horiz" />}
                         id="query-tab-actions-dropdown"
                         pullRight
+                        keepMounted
+                        buttonTitle="More Actions"
                         noCaret>
           {dashboardActions.length > 0 && (
             <>
@@ -183,7 +159,7 @@ const DashboardActionsMenu = () => {
           <MenuItem onSelect={() => setEditDashboardOpen(true)} disabled={isNewView || !allowedToEdit} icon="edit">
             Edit metadata
           </MenuItem>
-          <MenuItem onSelect={() => setExportOpen(true)} icon="cloud-download-alt">Export</MenuItem>
+          <MenuItem onSelect={() => setExportOpen(true)} icon="download">Export</MenuItem>
           {debugOverlay}
           <MenuItem divider />
           <BigDisplayModeConfiguration view={view} disabled={isNewView} />

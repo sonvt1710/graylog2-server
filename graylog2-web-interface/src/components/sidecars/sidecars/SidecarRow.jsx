@@ -25,16 +25,13 @@ import Routes from 'routing/Routes';
 import OperatingSystemIcon from 'components/sidecars/common/OperatingSystemIcon';
 import StatusIndicator from 'components/sidecars/common/StatusIndicator';
 import SidecarStatusEnum from 'logic/sidecar/SidecarStatusEnum';
+import recentMessagesTimeRange from 'util/TimeRangeHelper';
 
 import style from './SidecarRow.css';
 
 const SidecarTR = styled.tr(({ inactive, theme }) => css`
-  color: ${inactive ? theme.utils.contrastingColor(theme.colors.table.background, 'AA') : 'currentColor'};
+  color: ${inactive ? theme.utils.contrastingColor(theme.colors.global.contentBackground, 'AA') : 'currentColor'};
   opacity: ${inactive ? 0.9 : 1};
-
-  &:nth-of-type(2n+1) {
-    color: ${inactive ? theme.utils.contrastingColor(theme.colors.table.backgroundAlt, 'AA') : 'currentColor'};
-  }
 
   td:not(:last-child) {
     font-style: ${inactive ? 'italic' : 'normal'};
@@ -75,7 +72,7 @@ class SidecarRow extends React.Component {
             {sidecar.node_name}
           </Link>
         </td>
-        <td>
+        <td aria-label="Status">
           <StatusIndicator status={sidecarStatus.status}
                            message={sidecarStatus.message}
                            id={sidecarStatus.id}
@@ -102,7 +99,7 @@ class SidecarRow extends React.Component {
             <LinkContainer to={`${Routes.SYSTEM.SIDECARS.ADMINISTRATION}?node_id=${sidecar.node_id}`}>
               <Button bsSize="xsmall" bsStyle="info">Manage sidecar</Button>
             </LinkContainer>
-            <LinkContainer to={Routes.search_with_query(`gl2_source_collector:${sidecar.node_id}`, 'relative', { relative: 604800 })}>
+            <LinkContainer to={Routes.search_with_query(`gl2_source_collector:${sidecar.node_id}`, 'absolute', recentMessagesTimeRange())}>
               <Button bsSize="xsmall" bsStyle="info">Show messages</Button>
             </LinkContainer>
           </ButtonToolbar>

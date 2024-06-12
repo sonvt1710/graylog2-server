@@ -24,21 +24,21 @@ import { adminUser } from 'fixtures/users';
 import type { LayoutState } from 'views/components/contexts/SearchPageLayoutContext';
 import Search from 'views/logic/search/Search';
 import View from 'views/logic/views/View';
-import SearchPageLayoutContext, { SAVE_COPY, BLANK } from 'views/components/contexts/SearchPageLayoutContext';
+import { SAVE_COPY, BLANK } from 'views/components/contexts/SearchPageLayoutContext';
 import { ViewManagementActions } from 'views/stores/ViewManagementStore';
 import useSaveViewFormControls from 'views/hooks/useSaveViewFormControls';
 import useCurrentUser from 'hooks/useCurrentUser';
 import TestStoreProvider from 'views/test/TestStoreProvider';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import OnSaveViewAction from 'views/logic/views/OnSaveViewAction';
 import HotkeysProvider from 'contexts/HotkeysProvider';
+import SearchPageLayoutProvider from 'views/components/contexts/SearchPageLayoutProvider';
 
 import DashboardActionsMenu from './DashboardActionsMenu';
 
 jest.mock('views/logic/views/OnSaveViewAction', () => jest.fn(() => () => {}));
 jest.mock('views/hooks/useSaveViewFormControls');
 jest.mock('hooks/useCurrentUser');
-jest.mock('hooks/useFeature', () => (featureFlag: string) => featureFlag === 'frontend_hotkeys');
 
 jest.mock('bson-objectid', () => jest.fn(() => ({
   toString: jest.fn(() => 'new-dashboard-id'),
@@ -68,12 +68,12 @@ describe('DashboardActionsMenu', () => {
     .createdAt(new Date('2019-10-16T14:38:44.681Z'))
     .build();
 
-  const SUT = ({ providerOverrides, view }: { providerOverrides?: LayoutState, view?: View }) => (
+  const SUT = ({ providerOverrides, view }: { providerOverrides?: Partial<LayoutState>, view?: View }) => (
     <TestStoreProvider view={view}>
       <HotkeysProvider>
-        <SearchPageLayoutContext.Provider value={providerOverrides}>
+        <SearchPageLayoutProvider value={providerOverrides}>
           <DashboardActionsMenu />
-        </SearchPageLayoutContext.Provider>
+        </SearchPageLayoutProvider>
       </HotkeysProvider>
     </TestStoreProvider>
   );
@@ -83,9 +83,7 @@ describe('DashboardActionsMenu', () => {
     view: mockView,
   };
 
-  beforeAll(loadViewsPlugin);
-
-  afterAll(unloadViewsPlugin);
+  useViewsPlugin();
 
   const submitDashboardSaveForm = async () => {
     const saveDashboardModal = await screen.findByTestId('modal-form');
@@ -143,8 +141,9 @@ describe('DashboardActionsMenu', () => {
   });
 
   it('should open edit dashboard meta information modal', async () => {
-    const { getByText, findByText } = render(<SUT />);
-    const editMenuItem = getByText(/Edit metadata/i);
+    const { findByText } = render(<SUT />);
+    userEvent.click(await screen.findByRole('button', { name: /more actions/i }));
+    const editMenuItem = await screen.findByText(/Edit metadata/i);
 
     userEvent.click(editMenuItem);
 
@@ -166,7 +165,7 @@ describe('DashboardActionsMenu', () => {
     await findByTitle(/Save dashboard/);
     await findByTitle(/Save as new dashboard/);
     await findByTitle(/Share/);
-    await findByRole(/^menu$/);
+    await findByRole('button', { name: /more actions/i });
   });
 
   it('should only render "Save As" button in SAVE_COPY layout option', async () => {
@@ -174,7 +173,7 @@ describe('DashboardActionsMenu', () => {
 
     const saveButton = queryByTitle(/Save dashboard/);
     const shareButton = queryByTitle(/Share/);
-    const extrasButton = queryByRole(/^menu$/);
+    const extrasButton = queryByRole('menu');
 
     expect(saveButton).not.toBeInTheDocument();
     expect(shareButton).not.toBeInTheDocument();
@@ -189,7 +188,7 @@ describe('DashboardActionsMenu', () => {
     const saveButton = queryByTitle(/Save dashboard/);
     const saveAsButton = queryByTitle(/Save as new dashboard/);
     const shareButton = queryByTitle(/Share/);
-    const extrasButton = queryByRole(/^menu$/);
+    const extrasButton = queryByRole('menu');
 
     expect(saveButton).not.toBeInTheDocument();
     expect(saveAsButton).not.toBeInTheDocument();

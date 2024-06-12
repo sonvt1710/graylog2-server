@@ -28,6 +28,7 @@ import com.google.inject.multibindings.OptionalBinder;
 import com.google.inject.name.Names;
 import org.apache.shiro.realm.AuthenticatingRealm;
 import org.apache.shiro.realm.AuthorizingRealm;
+import org.graylog.plugins.views.search.db.StaticReferencedSearch;
 import org.graylog.plugins.views.search.views.ViewResolver;
 import org.graylog2.audit.AuditEventSender;
 import org.graylog2.audit.AuditEventType;
@@ -60,9 +61,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.ws.rs.container.ContainerResponseFilter;
-import javax.ws.rs.container.DynamicFeature;
-import javax.ws.rs.ext.ExceptionMapper;
+
+import jakarta.ws.rs.container.ContainerResponseFilter;
+import jakarta.ws.rs.container.DynamicFeature;
+import jakarta.ws.rs.ext.ExceptionMapper;
+
 import java.lang.annotation.Annotation;
 
 public abstract class Graylog2Module extends AbstractModule {
@@ -520,5 +523,13 @@ public abstract class Graylog2Module extends AbstractModule {
     protected void installViewResolver(String name,
                                        Class<? extends ViewResolver> resolverClass) {
         viewResolverBinder().addBinding(name).to(resolverClass).asEagerSingleton();
+    }
+
+    protected void addStaticReferencedSearch(StaticReferencedSearch referencedSearch) {
+        staticReferencedSearchBinder().addBinding().toInstance(referencedSearch);
+    }
+
+    protected Multibinder<StaticReferencedSearch> staticReferencedSearchBinder() {
+        return Multibinder.newSetBinder(binder(), StaticReferencedSearch.class);
     }
 }

@@ -25,7 +25,7 @@ import useActiveQueryId from 'views/hooks/useActiveQueryId';
 import useViewTitle from 'views/hooks/useViewTitle';
 import useViewMetadata from 'views/hooks/useViewMetadata';
 import TestStoreProvider from 'views/test/TestStoreProvider';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import useGlobalOverride from 'views/hooks/useGlobalOverride';
 import GlobalOverride from 'views/logic/search/GlobalOverride';
 
@@ -39,6 +39,7 @@ jest.mock('util/AppConfig', () => ({
   isFeatureEnabled: jest.fn(() => false),
 }));
 
+jest.mock('hooks/useHotkey', () => jest.fn());
 jest.mock('views/hooks/useViewType');
 jest.mock('views/hooks/useActiveQueryId');
 jest.mock('views/hooks/useViewTitle');
@@ -70,7 +71,7 @@ describe('<Sidebar />', () => {
   };
   const errors = [];
   const executionStats = { effective_timerange: effectiveTimerange, duration, timestamp };
-  const searchTypes = {};
+  const searchTypes = { 'search-type-id': { total: 12345, type: 'generic' } };
   const queryResult = new QueryResult({ execution_stats: executionStats, query, errors, search_types: searchTypes });
 
   const openDescriptionSection = async () => fireEvent.click(await screen.findByRole('button', { name: /description/i }));
@@ -85,9 +86,7 @@ describe('<Sidebar />', () => {
     </TestStoreProvider>,
   );
 
-  beforeAll(loadViewsPlugin);
-
-  afterAll(unloadViewsPlugin);
+  useViewsPlugin();
 
   beforeEach(() => {
     asMock(useViewType).mockReturnValue(View.Type.Search);
@@ -171,15 +170,17 @@ describe('<Sidebar />', () => {
 
     await screen.findByText('2018-08-28 16:34:26.192');
     await screen.findByText('2018-08-28 16:39:26.192');
+    await screen.findByText(/total results *12,345/i);
   });
 
-  it('should not render the effective search execution time range for dashboards without global override', async () => {
+  it('should not render the effective search execution time range and total result for dashboards without global override', async () => {
     asMock(useViewType).mockReturnValue(View.Type.Dashboard);
     renderSidebar();
 
     fireEvent.click(await screen.findByRole('button', { name: /description/i }));
 
-    await screen.findByText('Varies per widget');
+    await screen.findByText((_content, node) => (node.textContent === 'Effective time rangeVaries per widget'));
+    await screen.findByText((_content, node) => (node.textContent === 'Total resultsVaries per widget'));
   });
 
   it('should render the effective search execution time range for dashboards with global override', async () => {

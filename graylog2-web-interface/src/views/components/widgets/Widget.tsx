@@ -22,14 +22,12 @@ import styled from 'styled-components';
 import { getPathnameWithoutId } from 'util/URLUtils';
 import type { BackendWidgetPosition, WidgetResults, GetState } from 'views/types';
 import { widgetDefinition } from 'views/logic/Widgets';
-import { RefreshActions } from 'views/stores/RefreshStore';
 import WidgetModel from 'views/logic/widgets/Widget';
 import type WidgetPosition from 'views/logic/widgets/WidgetPosition';
 import type { Rows } from 'views/logic/searchtypes/pivot/PivotHandler';
 import type { AbsoluteTimeRange } from 'views/logic/queries/Query';
 import WidgetFocusContext from 'views/components/contexts/WidgetFocusContext';
 import TimerangeInfo from 'views/components/widgets/TimerangeInfo';
-import IfDashboard from 'views/components/dashboard/IfDashboard';
 import type WidgetConfig from 'views/logic/widgets/WidgetConfig';
 import type { FieldTypeMappingsList } from 'views/logic/fieldtypes/types';
 import useWidgetResults from 'views/components/useWidgetResults';
@@ -43,6 +41,10 @@ import { setTitle } from 'views/logic/slices/titlesActions';
 import useSendTelemetry from 'logic/telemetry/useSendTelemetry';
 import useLocation from 'routing/useLocation';
 import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
+import useAutoRefresh from 'views/hooks/useAutoRefresh';
+import useViewType from 'views/hooks/useViewType';
+import View from 'views/logic/views/View';
+import IfDashboard from 'views/components/dashboard/IfDashboard';
 
 import WidgetFrame from './WidgetFrame';
 import WidgetHeader from './WidgetHeader';
@@ -52,6 +54,7 @@ import ErrorWidget from './ErrorWidget';
 import WidgetColorContext from './WidgetColorContext';
 import WidgetErrorBoundary from './WidgetErrorBoundary';
 import WidgetActionsMenu from './WidgetActionsMenu';
+import WidgetWarmTierAlert from './WidgetWarmTierAlert';
 
 import InteractiveContext from '../contexts/InteractiveContext';
 
@@ -186,13 +189,17 @@ const setWidgetTitle = (widgetId: string, newTitle: string) => async (dispatch: 
 };
 
 const Widget = ({ id, editing, widget, title, position, onPositionsChange }: Props) => {
+  const viewType = useViewType();
   const fields = useQueryFieldTypes();
+  const { stopAutoRefresh } = useAutoRefresh();
   const [loading, setLoading] = useState(false);
   const [oldWidget, setOldWidget] = useState(editing ? widget : undefined);
   const { focusedWidget, setWidgetEditing, unsetWidgetEditing } = useContext(WidgetFocusContext);
   const dispatch = useAppDispatch();
   const sendTelemetry = useSendTelemetry();
   const { pathname } = useLocation();
+
+  const isDashboard = viewType === View.Type.Dashboard;
 
   const onToggleEdit = useCallback(() => {
     sendTelemetry(TELEMETRY_EVENT_TYPE.SEARCH_WIDGET_ACTION.WIDGET_EDIT_TOGGLED, {
@@ -205,11 +212,11 @@ const Widget = ({ id, editing, widget, title, position, onPositionsChange }: Pro
       unsetWidgetEditing();
       setOldWidget(undefined);
     } else {
-      RefreshActions.disable();
+      stopAutoRefresh();
       setWidgetEditing(widget.id);
       setOldWidget(widget);
     }
-  }, [editing, pathname, sendTelemetry, setWidgetEditing, unsetWidgetEditing, widget]);
+  }, [editing, pathname, sendTelemetry, setWidgetEditing, stopAutoRefresh, unsetWidgetEditing, widget]);
   const onCancelEdit = useCallback(() => {
     sendTelemetry(TELEMETRY_EVENT_TYPE.SEARCH_WIDGET_ACTION.WIDGET_EDIT_CANCEL_CLICKED, {
       app_pathname: getPathnameWithoutId(pathname),
@@ -242,6 +249,11 @@ const Widget = ({ id, editing, widget, title, position, onPositionsChange }: Pro
   return (
     <WidgetColorContext id={id}>
       <WidgetFrame widgetId={id}>
+        <IfDashboard>
+          {!editing && (
+            <WidgetWarmTierAlert widgetId={id} activeQuery={activeQuery} />
+          )}
+        </IfDashboard>
         <InteractiveContext.Consumer>
           {(interactive) => (
             <WidgetHeader title={title}
@@ -279,9 +291,9 @@ const Widget = ({ id, editing, widget, title, position, onPositionsChange }: Pro
           </WidgetErrorBoundary>
         </EditWrapper>
         <WidgetFooter>
-          <IfDashboard>
-            {!editing && <TimerangeInfo widget={widget} activeQuery={activeQuery} widgetId={id} />}
-          </IfDashboard>
+          {((widget.returnsAllRecords || isDashboard) && !editing) && (
+            <TimerangeInfo widget={widget} activeQuery={activeQuery} widgetId={id} returnsAllRecords={widget.returnsAllRecords} />
+          )}
         </WidgetFooter>
       </WidgetFrame>
     </WidgetColorContext>

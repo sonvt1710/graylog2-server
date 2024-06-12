@@ -16,20 +16,13 @@
  */
 
 import * as React from 'react';
-import styled from 'styled-components';
 import type { SyntheticEvent } from 'react';
 
 import Button from 'components/bootstrap/Button';
-import ButtonToolbar from 'components/bootstrap/ButtonToolbar';
 import type { IconName } from 'components/common/Icon';
 import Icon from 'components/common/Icon';
 import Spinner from 'components/common/Spinner';
-
-const StyledButtonToolbar = styled(ButtonToolbar)`
-  display: flex;
-  justify-content: flex-end;
-  align-items: end;
-`;
+import ModalButtonToolbar from 'components/common/ModalButtonToolbar';
 
 type WithCancelProps = {
   displayCancel: true,
@@ -61,7 +54,7 @@ type Props = {
   isSubmitting?: boolean,
   leftCol?: React.ReactNode,
   onSubmit?: (event?: SyntheticEvent) => void,
-  submitButtonText: string|React.ReactNode,
+  submitButtonText: React.ReactNode,
   submitButtonType?: 'submit' | 'button',
   submitIcon?: IconName,
 } & (WithCancelProps | WithoutCancelProps) & (WithAsyncSubmit | WithSyncSubmit);
@@ -81,8 +74,10 @@ const ModalSubmit = (props: Props) => {
     submitIcon,
   } = props;
 
+  const title = typeof submitButtonText === 'string' ? submitButtonText : undefined;
+
   return (
-    <StyledButtonToolbar className={className}>
+    <ModalButtonToolbar className={className}>
       {leftCol}
       {displayCancel && (
         <Button type="button"
@@ -98,14 +93,14 @@ const ModalSubmit = (props: Props) => {
               bsSize={bsSize}
               disabled={disabledSubmit || (isAsyncSubmit && props.isSubmitting)}
               form={formId}
-              title={submitButtonText}
-              aria-label={submitButtonText}
+              title={title}
+              aria-label={title}
               type={submitButtonType}
               onClick={onSubmit}>
         {(submitIcon && !(isAsyncSubmit && props.isSubmitting)) && <><Icon name={submitIcon} /> </>}
         {(isAsyncSubmit && props.isSubmitting) ? <Spinner text={props.submitLoadingText} delay={0} /> : submitButtonText}
       </Button>
-    </StyledButtonToolbar>
+    </ModalButtonToolbar>
   );
 };
 

@@ -19,14 +19,20 @@ package org.graylog.datanode.initializers;
 import com.codahale.metrics.InstrumentedExecutorService;
 import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.jaxrs.base.JsonMappingExceptionMapper;
-import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
+import com.fasterxml.jackson.jakarta.rs.base.JsonMappingExceptionMapper;
+import com.fasterxml.jackson.jakarta.rs.json.JacksonXmlBindJsonProvider;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
 import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.ws.rs.container.DynamicFeature;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.ext.ContextResolver;
+import jakarta.ws.rs.ext.ExceptionMapper;
 import org.glassfish.grizzly.http.CompressionConfig;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.http.server.NetworkListener;
@@ -38,28 +44,22 @@ import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.server.model.Resource;
 import org.graylog.datanode.Configuration;
-import org.graylog.datanode.configuration.variants.KeystoreInformation;
 import org.graylog.datanode.configuration.variants.OpensearchSecurityConfiguration;
-import org.graylog.datanode.management.OpensearchConfigurationChangeEvent;
-import org.graylog.datanode.process.OpensearchConfiguration;
+import org.graylog.datanode.opensearch.OpensearchConfigurationChangeEvent;
+import org.graylog.datanode.opensearch.configuration.OpensearchConfiguration;
+import org.graylog.datanode.rest.config.SecuredNodeAnnotationFilter;
 import org.graylog.security.certutil.CertConstants;
-import org.graylog2.bootstrap.preflight.web.BasicAuthFilter;
+import org.graylog.security.certutil.csr.FilesystemKeystoreInformation;
+import org.graylog.security.certutil.csr.KeystoreInformation;
 import org.graylog2.configuration.TLSProtocolsConfiguration;
 import org.graylog2.plugin.inject.Graylog2Module;
 import org.graylog2.rest.MoreMediaTypes;
-import org.graylog2.shared.rest.exceptionmappers.JacksonPropertyExceptionMapper;
 import org.graylog2.shared.rest.exceptionmappers.JsonProcessingExceptionMapper;
 import org.graylog2.shared.security.tls.KeyStoreUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Inject;
-import javax.inject.Named;
 import javax.net.ssl.SSLContext;
-import javax.ws.rs.container.DynamicFeature;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.ext.ContextResolver;
-import javax.ws.rs.ext.ExceptionMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -90,6 +90,7 @@ public class JerseyService extends AbstractIdleService {
     private final TLSProtocolsConfiguration tlsConfiguration;
 
     private HttpServer apiHttpServer = null;
+    private final ExecutorService executorService;
 
     @Inject
     public JerseyService(final Configuration configuration,
@@ -107,22 +108,28 @@ public class JerseyService extends AbstractIdleService {
         this.metricRegistry = requireNonNull(metricRegistry, "metricRegistry");
         this.tlsConfiguration = requireNonNull(tlsConfiguration);
         eventBus.register(this);
+        this.executorService = instrumentedExecutor(
+                "http-worker-executor",
+                "http-worker-%d",
+                configuration.getHttpThreadPoolSize());
     }
 
     @Subscribe
     public synchronized void handleOpensearchConfigurationChange(OpensearchConfigurationChangeEvent event) throws Exception {
-        LOG.info("Opensearch config changed, restarting jersey service to apply security changes");
+        if (apiHttpServer == null) {
+            // this is the very first start of the jersey service
+            LOG.info("Starting Data node REST API");
+        } else {
+            // jersey service has been running for some time, now we received new configuration. We'll reboot the service
+            LOG.info("Server configuration changed, restarting Data node REST API to apply security changes");
+        }
         shutDown();
         doStartup(extractSslConfiguration(event.config()));
     }
 
-    /**
-     * TODO: replace this map magic with proper types in OpensearchConfiguration
-     */
     private SSLEngineConfigurator extractSslConfiguration(OpensearchConfiguration config) throws GeneralSecurityException, IOException {
         final OpensearchSecurityConfiguration securityConfiguration = config.opensearchSecurityConfiguration();
         if (securityConfiguration != null && securityConfiguration.securityEnabled()) {
-            // caution, this path is relative to the opensearch config directory!
             return buildSslEngineConfigurator(securityConfiguration.getHttpCertificate());
         } else {
             return null;
@@ -169,7 +176,6 @@ public class JerseyService extends AbstractIdleService {
         apiHttpServer = setUp(
                 listenUri,
                 sslEngineConfigurator,
-                configuration.getHttpThreadPoolSize(),
                 configuration.getHttpSelectorRunnersCount(),
                 configuration.getHttpMaxHeaderSize(),
                 configuration.isHttpEnableGzip(),
@@ -186,10 +192,9 @@ public class JerseyService extends AbstractIdleService {
                 .property(ServerProperties.WADL_FEATURE_DISABLE, true)
                 .property(ServerProperties.MEDIA_TYPE_MAPPINGS, mediaTypeMappings())
                 .registerClasses(
-                        JacksonJaxbJsonProvider.class,
+                        JacksonXmlBindJsonProvider.class,
                         JsonProcessingExceptionMapper.class,
-                        JsonMappingExceptionMapper.class,
-                        JacksonPropertyExceptionMapper.class)
+                        JsonMappingExceptionMapper.class)
                 // Replacing this with a lambda leads to missing subtypes - https://github.com/Graylog2/graylog2-server/pull/10617#discussion_r630236360
                 .register(new ContextResolver<ObjectMapper>() {
                     @Override
@@ -218,7 +223,6 @@ public class JerseyService extends AbstractIdleService {
 
     private HttpServer setUp(URI listenUri,
                              SSLEngineConfigurator sslEngineConfigurator,
-                             int threadPoolSize,
                              int selectorRunnersCount,
                              int maxHeaderSize,
                              boolean enableGzip,
@@ -226,9 +230,10 @@ public class JerseyService extends AbstractIdleService {
         final boolean isSecuredInstance = sslEngineConfigurator != null;
         final ResourceConfig resourceConfig = buildResourceConfig(additionalResources);
 
-        if(isSecuredInstance) {
-            resourceConfig.register(new BasicAuthFilter(configuration.getRootUsername(), configuration.getRootPasswordSha2(), "Datanode"));
+        if (isSecuredInstance) {
+            resourceConfig.register(new JwtTokenAuthFilter(configuration.getPasswordSecret()));
         }
+        resourceConfig.register(new SecuredNodeAnnotationFilter(configuration.isInsecureStartup()));
 
         final HttpServer httpServer = GrizzlyHttpServerFactory.createHttpServer(
                 listenUri,
@@ -239,12 +244,7 @@ public class JerseyService extends AbstractIdleService {
 
         final NetworkListener listener = httpServer.getListener("grizzly");
         listener.setMaxHttpHeaderSize(maxHeaderSize);
-
-        final ExecutorService workerThreadPoolExecutor = instrumentedExecutor(
-                "http-worker-executor",
-                "http-worker-%d",
-                threadPoolSize);
-        listener.getTransport().setWorkerThreadPool(workerThreadPoolExecutor);
+        listener.getTransport().setWorkerThreadPool(executorService);
 
         // The Grizzly default value is equal to `Runtime.getRuntime().availableProcessors()` which doesn't make
         // sense for Graylog because we are not mainly a web server.
@@ -260,7 +260,7 @@ public class JerseyService extends AbstractIdleService {
         return httpServer;
     }
 
-    private SSLEngineConfigurator buildSslEngineConfigurator(KeystoreInformation keystoreInformation)
+    private SSLEngineConfigurator buildSslEngineConfigurator(FilesystemKeystoreInformation keystoreInformation)
             throws GeneralSecurityException, IOException {
         if (keystoreInformation == null || !Files.isRegularFile(keystoreInformation.location()) || !Files.isReadable(keystoreInformation.location())) {
             throw new IllegalArgumentException("Unreadable to read private key");
@@ -281,7 +281,7 @@ public class JerseyService extends AbstractIdleService {
         return sslEngineConfigurator;
     }
 
-    private static KeyStore readKeystore(KeystoreInformation keystoreInformation) {
+    private static KeyStore readKeystore(FilesystemKeystoreInformation keystoreInformation) {
         try (var in = Files.newInputStream(keystoreInformation.location())) {
             KeyStore caKeystore = KeyStore.getInstance(CertConstants.PKCS12);
             caKeystore.load(in, keystoreInformation.password());

@@ -20,32 +20,23 @@ import { applyTimeoutMultiplier } from 'jest-preset-graylog/lib/timeouts';
 import userEvent from '@testing-library/user-event';
 import { defaultUser } from 'defaultMockValues';
 
-import { StoreMock as MockStore, asMock } from 'helpers/mocking';
-import mockSearchClusterConfig from 'fixtures/searchClusterConfig';
+import { asMock } from 'helpers/mocking';
 import ToolsStore from 'stores/tools/ToolsStore';
 import useCurrentUser from 'hooks/useCurrentUser';
 import { adminUser } from 'fixtures/users';
 
-import TimeRangePicker from './TimeRangePicker';
+import OriginalTimeRangePicker from './TimeRangePicker';
 
 jest.mock('hooks/useCurrentUser');
-
-jest.mock('views/stores/SearchConfigStore', () => ({
-  SearchConfigActions: {
-    refresh: jest.fn(() => Promise.resolve()),
-  },
-  SearchConfigStore: MockStore(
-    'get',
-    'refresh',
-    ['getInitialState', () => ({ searchesClusterConfig: mockSearchClusterConfig })],
-  ),
-}));
+jest.mock('hooks/useHotkey', () => jest.fn());
+jest.mock('views/logic/debounceWithPromise', () => (fn: any) => fn);
 
 jest.mock('stores/tools/ToolsStore', () => ({
   testNaturalDate: jest.fn(),
 }));
 
 const defaultProps = {
+  show: true,
   currentTimeRange: {
     type: 'relative',
     from: 300,
@@ -56,6 +47,12 @@ const defaultProps = {
   toggleDropdownShow: jest.fn(),
   position: 'bottom',
 } as const;
+
+const TimeRangePicker = (props: React.ComponentProps<typeof OriginalTimeRangePicker>) => (
+  <OriginalTimeRangePicker {...props}>
+    <button type="button">Open</button>
+  </OriginalTimeRangePicker>
+);
 
 describe('TimeRangePicker', () => {
   beforeEach(() => {
@@ -80,6 +77,9 @@ describe('TimeRangePicker', () => {
     render(<TimeRangePicker {...defaultProps} />);
 
     const applyButton = screen.getByRole('button', { name: /update time range/i });
+
+    await waitFor(() => expect(applyButton).not.toBeDisabled());
+
     fireEvent.click(applyButton);
 
     await waitFor(() => expect(defaultProps.setCurrentTimeRange).toHaveBeenCalled());

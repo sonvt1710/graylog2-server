@@ -16,17 +16,57 @@
  */
 package org.graylog.datanode.configuration.variants;
 
-import org.graylog.datanode.Configuration;
+import com.google.common.base.Suppliers;
+import org.graylog.datanode.configuration.DatanodeConfiguration;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.Supplier;
 
-public sealed abstract class SecureConfiguration implements SecurityConfigurationVariant permits MongoCertSecureConfiguration, UploadedCertFilesSecureConfiguration {
+public abstract class SecureConfiguration implements SecurityConfigurationVariant {
 
-    final Path datanodeConfigDir;
-    final Path opensearchConfigDir;
+    /**
+     * This filename is used only internally - we copy user-provided certificates to this location and
+     * we configure opensearch to read this file. It doesn't have to match naming provided by user.
+     * The target configuration is regenerated during each startup, so it could also be a random filename
+     * as long as we use the same name as a copy-target and opensearch config property.
+     */
+    private static final Path TARGET_DATANODE_HTTP_KEYSTORE_FILENAME = Path.of("http-keystore.p12");
+    /**
+     * This filename is used only internally - we copy user-provided certificates to this location and
+     * we configure opensearch to read this file. It doesn't have to match naming provided by user.
+     * The target configuration is regenerated during each startup, so it could also be a random filename
+     * as long as we use the same name as a copy-target and opensearch config property.
+     */
+    private static final Path TARGET_DATANODE_TRANSPORT_KEYSTORE_FILENAME = Path.of("transport-keystore.p12");
 
-    public SecureConfiguration(final Configuration localConfiguration) {
-        this.opensearchConfigDir = Path.of(localConfiguration.getOpensearchConfigLocation()).resolve("opensearch");
-        this.datanodeConfigDir = Path.of(localConfiguration.getConfigLocation());
+    private final Supplier<Path> httpKeystoreLocation;
+    private final Supplier<Path> transportKeystoreLocation;
+
+    public SecureConfiguration(final DatanodeConfiguration datanodeConfiguration) {
+        this.httpKeystoreLocation = Suppliers.memoize(() -> {
+            try {
+                return datanodeConfiguration.datanodeDirectories().createOpensearchProcessConfigurationFile(TARGET_DATANODE_HTTP_KEYSTORE_FILENAME);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to create http keystore file", e);
+            }
+        });
+
+        this.transportKeystoreLocation = Suppliers.memoize(() -> {
+            try {
+                return datanodeConfiguration.datanodeDirectories().createOpensearchProcessConfigurationFile(TARGET_DATANODE_TRANSPORT_KEYSTORE_FILENAME);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to create transport keystore file", e);
+            }
+        });
+    }
+
+    Path getHttpKeystoreLocation() {
+        return httpKeystoreLocation.get();
+    }
+
+
+    Path getTransportKeystoreLocation() {
+        return transportKeystoreLocation.get();
     }
 }

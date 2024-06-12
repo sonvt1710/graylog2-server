@@ -20,6 +20,17 @@ import com.google.common.eventbus.EventBus;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import jakarta.inject.Inject;
+import jakarta.validation.Valid;
+import jakarta.validation.ValidationException;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MediaType;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
 import org.graylog.plugins.views.search.Search;
 import org.graylog.plugins.views.search.SearchJob;
@@ -43,17 +54,6 @@ import org.graylog2.shared.utilities.StringUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import javax.inject.Inject;
-import javax.validation.Valid;
-import javax.validation.ValidationException;
-import javax.ws.rs.BadRequestException;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
 import java.util.List;
 import java.util.Set;
 
@@ -102,7 +102,7 @@ public class ScriptingApiResource extends RestResource implements PluginRestReso
             Search search = searchCreator.mapToSearch(messagesRequestSpec, searchUser);
 
             //Step 2: execute search as we usually do
-            final SearchJob searchJob = searchExecutor.execute(search, searchUser, ExecutionState.empty());
+            final SearchJob searchJob = searchExecutor.executeSync(search, searchUser, ExecutionState.empty());
             postAuditEvent(searchJob);
 
             //Step 3: take complex response and try to map it to simpler, tabular form
@@ -155,7 +155,7 @@ public class ScriptingApiResource extends RestResource implements PluginRestReso
             Search search = searchCreator.mapToSearch(aggregationRequestSpec, searchUser);
 
             //Step 2: execute search as we usually do
-            final SearchJob searchJob = searchExecutor.execute(search, searchUser, ExecutionState.empty());
+            final SearchJob searchJob = searchExecutor.executeSync(search, searchUser, ExecutionState.empty());
             postAuditEvent(searchJob);
 
             //Step 3: take complex response and try to map it to simpler, tabular form

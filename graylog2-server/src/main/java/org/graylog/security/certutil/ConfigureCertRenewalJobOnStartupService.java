@@ -24,8 +24,8 @@ import org.graylog.scheduler.JobTriggerDto;
 import org.graylog.scheduler.JobTriggerStatus;
 import org.graylog.scheduler.schedule.CronJobSchedule;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 import static org.graylog.security.certutil.CheckForCertRenewalJob.DEFINITION_INSTANCE;
 import static org.graylog.security.certutil.CheckForCertRenewalJob.RENEWAL_JOB_ID;
@@ -57,7 +57,6 @@ public class ConfigureCertRenewalJobOnStartupService extends AbstractIdleService
                     .jobDefinitionId(jobDefinition.id())
                     .jobDefinitionType(CheckForCertRenewalJob.TYPE_NAME)
                     .schedule(cronJobSchedule)
-                    .status(JobTriggerStatus.RUNNABLE)
                     .build();
 
             jobTriggerService.create(trigger);

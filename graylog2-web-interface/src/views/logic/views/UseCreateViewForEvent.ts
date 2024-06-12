@@ -21,7 +21,7 @@ import uniq from 'lodash/uniq';
 import View from 'views/logic/views/View';
 import type { AbsoluteTimeRange, ElasticsearchQueryString, RelativeTimeRangeStartOnly } from 'views/logic/queries/Query';
 import type { Event } from 'components/events/events/types';
-import type { EventDefinition } from 'logic/alerts/types';
+import type { EventDefinition, SearchFilter } from 'components/event-definitions/event-definitions-types';
 import QueryGenerator from 'views/logic/queries/QueryGenerator';
 import Search from 'views/logic/search/Search';
 import { matchesDecoratorStream } from 'views/logic/views/ViewStateGenerator';
@@ -180,6 +180,7 @@ export const ViewGenerator = async ({
   aggregations,
   groupBy,
   queryParameters,
+  searchFilters,
 }: {
   streams: string | string[] | undefined | null,
   timeRange: AbsoluteTimeRange | RelativeTimeRangeStartOnly,
@@ -187,9 +188,9 @@ export const ViewGenerator = async ({
   aggregations: Array<EventDefinitionAggregation>
   groupBy: Array<string>,
   queryParameters: Array<ParameterJson>,
-},
-) => {
-  const query = QueryGenerator(streams, undefined, timeRange, queryString);
+  searchFilters?: Array<SearchFilter>,
+}) => {
+  const query = QueryGenerator(streams, undefined, timeRange, queryString, (searchFilters || []));
   const search = Search.create().toBuilder().queries([query]).parameters(queryParameters.map((param) => Parameter.fromJSON(param)))
     .build();
   const viewState = await ViewStateGenerator({ streams, aggregations, groupBy });
@@ -225,8 +226,10 @@ export const UseCreateViewForEvent = (
 
   const groupBy = eventDefinition?.config?.group_by ?? [];
 
+  const searchFilters = eventDefinition.config?.filters;
+
   return useMemo(
-    () => ViewGenerator({ streams, timeRange, queryString, aggregations, groupBy, queryParameters }),
+    () => ViewGenerator({ streams, timeRange, queryString, aggregations, groupBy, queryParameters, searchFilters }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );

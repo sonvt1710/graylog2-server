@@ -14,19 +14,24 @@
  * along with this program. If not, see
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
+
+import type { SystemConfigurationComponentProps } from 'views/types';
+import type { RotationJsonSchema } from 'components/indices/Types';
+
 type IndexRotationConfigProp = object;
 
-type IndexRotationConfigComponentProps = {
+interface IndexRotationConfigComponentProps extends SystemConfigurationComponentProps {
   config: IndexRotationConfigProp;
-  jsonSchema: object;
+  jsonSchema: RotationJsonSchema;
   updateConfig: (update: IndexRotationConfigProp) => void;
-};
+}
 
 type IndexRotationSummaryComponentProps = {
   config: IndexRotationConfigProp;
+  rotationStrategyClass?: string;
 };
 
-type IndexRotationConfig = {
+export type IndexRotationConfig = {
   type: string;
   displayName: string;
   configComponent: React.ComponentType<IndexRotationConfigComponentProps>;

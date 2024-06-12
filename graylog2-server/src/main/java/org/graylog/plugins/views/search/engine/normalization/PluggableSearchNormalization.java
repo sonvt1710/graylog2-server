@@ -16,14 +16,18 @@
  */
 package org.graylog.plugins.views.search.engine.normalization;
 
+import jakarta.inject.Inject;
 import org.graylog.plugins.views.search.ParameterProvider;
 import org.graylog.plugins.views.search.Query;
 import org.graylog.plugins.views.search.Search;
 import org.graylog.plugins.views.search.permissions.SearchUser;
 import org.graylog.plugins.views.search.rest.ExecutionState;
+import org.graylog.plugins.views.search.rest.ExecutionStateGlobalOverride;
+import org.graylog2.plugin.Tools;
+import org.joda.time.DateTime;
 
-import javax.inject.Inject;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
@@ -64,10 +68,19 @@ public class PluggableSearchNormalization implements SearchNormalization {
 
     @Override
     public Search preValidation(Search search, SearchUser searchUser, ExecutionState executionState) {
-        final Search searchWithStreams = search.addStreamsToQueriesWithoutStreams(() -> searchUser.streams().loadAll());
-        Search normalizedSearch = searchWithStreams.applyExecutionState(firstNonNull(executionState, ExecutionState.empty()));
+        final Search searchWithStreams = search.addStreamsToQueriesWithoutStreams(() -> searchUser.streams().loadMessageStreamsWithFallback());
+        final var now = referenceDateFromOverrideOrNow(executionState);
+        final var normalizedSearch = searchWithStreams.applyExecutionState(firstNonNull(executionState, ExecutionState.empty()))
+                .withReferenceDate(now);
 
         return normalize(normalizedSearch, pluggableNormalizers);
+    }
+
+    private DateTime referenceDateFromOverrideOrNow(ExecutionState executionState) {
+        return Optional.ofNullable(executionState)
+                .map(ExecutionState::globalOverride)
+                .flatMap(ExecutionStateGlobalOverride::now)
+                .orElse(Tools.nowUTC());
     }
 
     @Override
@@ -79,7 +92,7 @@ public class PluggableSearchNormalization implements SearchNormalization {
     public Query preValidation(final Query query, final ParameterProvider parameterProvider, SearchUser searchUser, ExecutionState executionState) {
         Query normalizedQuery = query;
         if (!query.hasStreams()) {
-            normalizedQuery = query.addStreamsToFilter(searchUser.streams().loadAll());
+            normalizedQuery = query.addStreamsToFilter(searchUser.streams().loadMessageStreamsWithFallback());
         }
 
         if (!executionState.equals(ExecutionState.empty())) {
@@ -93,4 +106,6 @@ public class PluggableSearchNormalization implements SearchNormalization {
     public Query postValidation(final Query query, final ParameterProvider parameterProvider) {
         return normalize(query, parameterProvider, postValidationNormalizers);
     }
+
+
 }

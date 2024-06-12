@@ -15,7 +15,6 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import * as React from 'react';
-import { useMemo } from 'react';
 import type * as Immutable from 'immutable';
 
 import { LinkContainer } from 'components/common/router';
@@ -29,6 +28,7 @@ import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
 import useSendTelemetry from 'logic/telemetry/useSendTelemetry';
 import useLocation from 'routing/useLocation';
 import { getPathnameWithoutId } from 'util/URLUtils';
+import MessagePermalinkButton from 'views/components/common/MessagePermalinkButton';
 
 const _getTestAgainstStreamButton = (streams: Immutable.List<any>, index: string, id: string) => {
   const sendTelemetry = useSendTelemetry();
@@ -66,8 +66,18 @@ const _getTestAgainstStreamButton = (streams: Immutable.List<any>, index: string
                     bsSize="small"
                     title="Test against stream"
                     id="select-stream-dropdown">
-      {streamList || <MenuItem header>No streams available</MenuItem>}
+      {(streamList && !streamList.isEmpty()) ? streamList.toArray() : <MenuItem header>No streams available</MenuItem>}
     </DropdownButton>
+  );
+};
+
+const usePluggableMessageActions = (id: string, index: string) => {
+  const pluggableMenuActions = usePluginEntities('views.components.widgets.messageTable.messageActions');
+
+  return pluggableMenuActions.filter(
+    (perspective) => (perspective.useCondition ? !!perspective.useCondition() : true),
+  ).map(
+    ({ component: PluggableMenuAction, key }) => <PluggableMenuAction key={key} id={id} index={index} />,
   );
 };
 
@@ -100,16 +110,11 @@ const MessageActions = ({
   streams,
   searchConfig,
 }: Props) => {
-  const pluggableMenuActions = usePluginEntities('views.components.widgets.messageTable.messageActions');
-  const menuActions = useMemo(() => pluggableMenuActions.map(
-    ({ component: PluggableMenuAction, key }) => <PluggableMenuAction key={key} id={id} index={index} />,
-  ), [id, index, pluggableMenuActions]);
+  const pluggableActions = usePluggableMessageActions(id, index);
 
   if (disabled) {
-    return <ButtonGroup bsSize="small" />;
+    return <ButtonGroup />;
   }
-
-  const messageUrl = index ? Routes.message_show(index, id) : '#';
 
   const { timestamp, ...remainingFields } = fields;
 
@@ -124,10 +129,10 @@ const MessageActions = ({
     && <Button onClick={toggleShowOriginal} active={showOriginal}>Show changes</Button>;
 
   return (
-    <ButtonGroup bsSize="small">
+    <ButtonGroup>
       {showChanges}
-      <Button href={messageUrl}>Permalink</Button>
-      {menuActions}
+      <MessagePermalinkButton messageIndex={index} messageId={id} />
+      {pluggableActions}
 
       <ClipboardButton title="Copy ID" text={id} bsSize="small" />
       <ClipboardButton title="Copy message" bsSize="small" text={JSON.stringify(fields, null, 2)} />

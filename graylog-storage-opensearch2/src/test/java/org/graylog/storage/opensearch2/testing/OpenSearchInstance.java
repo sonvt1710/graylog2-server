@@ -16,7 +16,10 @@
  */
 package org.graylog.storage.opensearch2.testing;
 
-import com.github.joschi.jadconfig.util.Duration;
+import com.github.joschi.jadconfig.JadConfig;
+import com.github.joschi.jadconfig.RepositoryException;
+import com.github.joschi.jadconfig.ValidationException;
+import com.github.joschi.jadconfig.repositories.InMemoryRepository;
 import com.github.rholder.retry.RetryException;
 import com.github.rholder.retry.RetryerBuilder;
 import com.github.rholder.retry.StopStrategies;
@@ -29,13 +32,18 @@ import org.graylog.shaded.opensearch2.org.opensearch.client.RequestOptions;
 import org.graylog.shaded.opensearch2.org.opensearch.client.RestHighLevelClient;
 import org.graylog.shaded.opensearch2.org.opensearch.client.indices.GetIndexRequest;
 import org.graylog.shaded.opensearch2.org.opensearch.client.indices.GetIndexResponse;
+import org.graylog.shaded.opensearch2.org.opensearch.client.indices.PutComposableIndexTemplateRequest;
+import org.graylog.shaded.opensearch2.org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.graylog.shaded.opensearch2.org.opensearch.cluster.metadata.Template;
+import org.graylog.shaded.opensearch2.org.opensearch.common.settings.Settings;
 import org.graylog.storage.opensearch2.OpenSearchClient;
-import org.graylog.storage.opensearch2.RestHighLevelClientProvider;
+import org.graylog.storage.opensearch2.RestClientProvider;
 import org.graylog.testing.containermatrix.SearchServer;
 import org.graylog.testing.elasticsearch.Adapters;
 import org.graylog.testing.elasticsearch.Client;
 import org.graylog.testing.elasticsearch.FixtureImporter;
 import org.graylog.testing.elasticsearch.TestableSearchServerInstance;
+import org.graylog2.configuration.ElasticsearchClientConfiguration;
 import org.graylog2.shared.bindings.providers.ObjectMapperProvider;
 import org.graylog2.storage.SearchVersion;
 import org.graylog2.system.shutdown.GracefulShutdownService;
@@ -69,7 +77,11 @@ public class OpenSearchInstance extends TestableSearchServerInstance {
     private List<String> featureFlags;
 
     public OpenSearchInstance(final SearchVersion version, final String hostname, final Network network, final String heapSize, final List<String> featureFlags) {
-        super(version, hostname, network, heapSize);
+        this(version, hostname, network, heapSize, featureFlags, Map.of());
+    }
+
+    public OpenSearchInstance(final SearchVersion version, final String hostname, final Network network, final String heapSize, final List<String> featureFlags, Map<String, String> env) {
+        super(version, hostname, network, heapSize, env);
         this.featureFlags = featureFlags;
     }
 
@@ -77,15 +89,49 @@ public class OpenSearchInstance extends TestableSearchServerInstance {
     public OpenSearchInstance init() {
         super.init();
         RestHighLevelClient restHighLevelClient = buildRestClient();
-        this.openSearchClient = new OpenSearchClient(restHighLevelClient, false, new ObjectMapperProvider().get());
+        this.openSearchClient = new OpenSearchClient(restHighLevelClient, new ObjectMapperProvider().get());
         this.client = new ClientOS2(this.openSearchClient, featureFlags);
         this.fixtureImporter = new FixtureImporterOS2(this.openSearchClient);
-        adapters = new AdaptersOS2(openSearchClient);
+        adapters = new AdaptersOS2(openSearchClient, featureFlags);
         Runtime.getRuntime().addShutdownHook(new Thread(this::close));
-        if(isFirstContainerStart) {
+        if (isFirstContainerStart) {
             afterContainerCreated();
         }
         return this;
+    }
+
+    private RestHighLevelClient buildRestClient() {
+
+        final ElasticsearchClientConfiguration config = buildconfig(Map.of(
+                "elasticsearch_connect_timeout", "60s",
+                "elasticsearch_socket_timeout", "60s",
+                "elasticsearch_idle_timeout", "60s",
+                "elasticsearch_max_total_connections", "1",
+                "elasticsearch_max_total_connections_per_route", "1",
+                "elasticsearch_max_retries", "1",
+                "elasticsearch_use_expect_continue", "false"
+        ));
+
+        return new RestClientProvider(
+                new GracefulShutdownService(),
+                ImmutableList.of(URI.create("http://" + this.getHttpHostAddress())),
+                config,
+                new BasicCredentialsProvider(),
+                null,
+                false,
+                null)
+                .get();
+    }
+
+    private ElasticsearchClientConfiguration buildconfig(Map<String, String> properties) {
+        final ElasticsearchClientConfiguration opensearchConfig = new ElasticsearchClientConfiguration();
+        final JadConfig config = new JadConfig(new InMemoryRepository(properties), opensearchConfig);
+        try {
+            config.process();
+            return opensearchConfig;
+        } catch (RepositoryException | ValidationException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static OpenSearchInstance create() {
@@ -96,6 +142,18 @@ public class OpenSearchInstance extends TestableSearchServerInstance {
         if (version().satisfies(SearchVersion.Distribution.OPENSEARCH, "2.9.0")) {
             fixNumberOfReplicaForMlPlugin();
         }
+        if (version().isOpenSearch()) {
+            fixDefaultNumberOfReplicasForIsmConfigs();
+        }
+    }
+
+    private void fixDefaultNumberOfReplicasForIsmConfigs() {
+        PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest();
+        request.name("ism-zero-replica-template");
+        request.indexTemplate(new ComposableIndexTemplate(List.of(".opendistro-ism-config"),
+                new Template(Settings.builder().put("number_of_replicas", 0).build(), null, null),
+                null, Long.MAX_VALUE, null, null));
+        openSearchClient().execute((client, requestOptions) -> client.indices().putIndexTemplate(request, requestOptions));
     }
 
     /**
@@ -144,31 +202,6 @@ public class OpenSearchInstance extends TestableSearchServerInstance {
         return OPENSEARCH_VERSION;
     }
 
-    private RestHighLevelClient buildRestClient() {
-        return new RestHighLevelClientProvider(
-                new GracefulShutdownService(),
-                ImmutableList.of(URI.create("http://" + this.getHttpHostAddress())),
-                Duration.seconds(60),
-                Duration.seconds(60),
-                Duration.seconds(60),
-                1,
-                1,
-                1,
-                false,
-                false,
-                null,
-                Duration.seconds(60),
-                "http",
-                false,
-                false,
-                new BasicCredentialsProvider(),
-                null,
-                false,
-                false,
-                null)
-                .get();
-    }
-
     @Override
     public Client client() {
         return this.client;
@@ -187,7 +220,7 @@ public class OpenSearchInstance extends TestableSearchServerInstance {
     public GenericContainer<?> buildContainer(String image, Network network) {
         var container = new OpensearchContainer(DockerImageName.parse(image))
                 // Avoids reuse warning on Jenkins (we don't want reuse in our CI environment)
-                .withReuse(isNull(System.getenv("BUILD_ID")))
+                .withReuse(isNull(System.getenv("CI")))
                 .withEnv("OPENSEARCH_JAVA_OPTS", getEsJavaOpts())
                 .withEnv("cluster.info.update.interval", "10s")
                 .withEnv("cluster.routing.allocation.disk.reroute_interval", "5s")
@@ -197,9 +230,11 @@ public class OpenSearchInstance extends TestableSearchServerInstance {
                 .withNetwork(network)
                 .withNetworkAliases(hostname);
 
+        getContainerEnv().forEach(container::withEnv);
+
         // disabling the performance plugin in 2.0.1 consistently created errors during CI runs, but keeping it running
         // in later versions sometimes created errors on CI, too.
-        if(version().satisfies(SearchVersion.Distribution.OPENSEARCH, "^2.7.0")) {
+        if (version().satisfies(SearchVersion.Distribution.OPENSEARCH, "^2.7.0")) {
             return container.withCommand("sh", "-c", "opensearch-plugin remove opensearch-performance-analyzer && ./opensearch-docker-entrypoint.sh");
         } else {
             return container;

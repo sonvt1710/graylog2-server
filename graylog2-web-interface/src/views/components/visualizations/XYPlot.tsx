@@ -28,7 +28,7 @@ import assertUnreachable from 'logic/assertUnreachable';
 import useAppDispatch from 'stores/useAppDispatch';
 
 import GenericPlot from './GenericPlot';
-import type { ChartColor, ChartConfig } from './GenericPlot';
+import type { ChartColor, ChartConfig, PlotLayout } from './GenericPlot';
 import OnZoom from './OnZoom';
 
 import CustomPropTypes from '../CustomPropTypes';
@@ -41,10 +41,9 @@ export type Props = {
     from: string,
     to: string,
   },
-  getChartColor?: (data: Array<ChartConfig>, name: string) => (string | undefined | null),
   height?: number;
   setChartColor?: (config: ChartConfig, color: ColorMapper) => ChartColor,
-  plotLayout?: any,
+  plotLayout?: Partial<PlotLayout>,
   onZoom?: (from: string, to: string, userTimezone: string) => boolean,
 };
 
@@ -58,13 +57,6 @@ const yLegendPosition = (containerHeight: number) => {
   }
 
   return -0.14;
-};
-
-type Layout = {
-  yaxis: { fixedrange?: boolean },
-  legend?: { y?: number },
-  showlegend: boolean,
-  hovermode: 'x',
 };
 
 const mapAxisType = (axisType: AxisType): 'linear' | 'log' => {
@@ -82,17 +74,15 @@ const XYPlot = ({
   config,
   chartData,
   effectiveTimerange,
-  getChartColor,
   setChartColor,
   height,
   plotLayout = {},
   onZoom,
 }: Props) => {
   const { formatTime, userTimezone } = useUserDateTime();
-  const yaxis = { fixedrange: true, rangemode: 'tozero', tickformat: ',~r', type: mapAxisType(axisType) };
-  const defaultLayout: Layout = {
+  const yaxis = { fixedrange: true, rangemode: 'tozero', tickformat: ',~r', type: mapAxisType(axisType) } as const;
+  const defaultLayout: Partial<PlotLayout> = {
     yaxis,
-    showlegend: false,
     hovermode: 'x',
   };
 
@@ -100,7 +90,7 @@ const XYPlot = ({
     defaultLayout.legend = { y: yLegendPosition(height) };
   }
 
-  const layout = { ...defaultLayout, ...plotLayout };
+  const layout: Partial<PlotLayout> = { ...defaultLayout, ...plotLayout };
   const dispatch = useAppDispatch();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const _onZoom = useCallback(config.isTimeline
@@ -128,7 +118,6 @@ const XYPlot = ({
       <GenericPlot chartData={chartData}
                    layout={layout}
                    onZoom={_onZoom}
-                   getChartColor={getChartColor}
                    setChartColor={setChartColor} />
     </PlotLegend>
   );
@@ -145,7 +134,6 @@ XYPlot.propTypes = {
     to: PropTypes.string.isRequired,
   }),
   plotLayout: PropTypes.object,
-  getChartColor: PropTypes.func,
   setChartColor: PropTypes.func,
   onZoom: PropTypes.func,
 };
@@ -153,7 +141,6 @@ XYPlot.propTypes = {
 XYPlot.defaultProps = {
   axisType: DEFAULT_AXIS_TYPE,
   plotLayout: {},
-  getChartColor: undefined,
   setChartColor: defaultSetColor,
   effectiveTimerange: undefined,
   onZoom: undefined,

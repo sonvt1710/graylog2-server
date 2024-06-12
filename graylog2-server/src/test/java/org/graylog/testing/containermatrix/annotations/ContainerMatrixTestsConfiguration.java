@@ -47,6 +47,13 @@ import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_CLASS;
 @TestInstance(PER_CLASS)
 @Testable
 public @interface ContainerMatrixTestsConfiguration {
+
+    @interface ConfigurationParameter {
+        String key();
+
+        String value();
+    }
+
     // combination rule
     Lifecycle serverLifecycle() default Lifecycle.VM;
 
@@ -68,9 +75,6 @@ public @interface ContainerMatrixTestsConfiguration {
      */
     MongodbServer[] mongoVersions() default {MongodbServer.MONGO5};
 
-    // additional Parameter, gets concatenated for all tests below the above rules
-    int[] extraPorts() default {};
-
     // are run after the initialization of mongoDb, gets concatenated for all tests below the above rules
     String[] mongoDBFixtures() default {};
 
@@ -90,4 +94,8 @@ public @interface ContainerMatrixTestsConfiguration {
     boolean importLicenses() default defaultImportLicenses;
 
     boolean withMailServerEnabled() default false;
+
+    ConfigurationParameter[] additionalConfigurationParameters() default {};
+
+    boolean withWebhookServerEnabled() default false;
 }

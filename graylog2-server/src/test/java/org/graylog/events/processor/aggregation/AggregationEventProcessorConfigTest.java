@@ -32,13 +32,19 @@ import org.graylog.events.processor.EventDefinitionDto;
 import org.graylog.events.processor.EventProcessorConfig;
 import org.graylog.events.processor.EventProcessorExecutionJob;
 import org.graylog.events.processor.storage.PersistToStreamsStorageHandler;
+import org.graylog.plugins.views.search.searchfilters.db.IgnoreSearchFilters;
 import org.graylog.plugins.views.search.searchtypes.pivot.SeriesSpec;
 import org.graylog.plugins.views.search.searchtypes.pivot.series.Average;
+import org.graylog.plugins.views.search.searchtypes.pivot.series.Cardinality;
+import org.graylog.plugins.views.search.searchtypes.pivot.series.Latest;
+import org.graylog.plugins.views.search.searchtypes.pivot.series.Max;
+import org.graylog.plugins.views.search.searchtypes.pivot.series.Sum;
 import org.graylog.scheduler.schedule.IntervalJobSchedule;
 import org.graylog.security.entities.EntityOwnershipService;
 import org.graylog.testing.mongodb.MongoDBFixtures;
 import org.graylog.testing.mongodb.MongoDBInstance;
 import org.graylog2.bindings.providers.MongoJackObjectMapperProvider;
+import org.graylog2.database.MongoCollections;
 import org.graylog2.plugin.indexer.searches.timeranges.AbsoluteRange;
 import org.graylog2.plugin.rest.ValidationResult;
 import org.graylog2.shared.bindings.providers.ObjectMapperProvider;
@@ -58,6 +64,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.graylog.events.processor.aggregation.AggregationEventProcessorConfig.FIELD_SERIES;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class AggregationEventProcessorConfigTest {
@@ -87,8 +96,9 @@ public class AggregationEventProcessorConfigTest {
         objectMapper.registerSubtypes(new NamedType(PersistToStreamsStorageHandler.Config.class, PersistToStreamsStorageHandler.Config.TYPE_NAME));
 
         final MongoJackObjectMapperProvider mapperProvider = new MongoJackObjectMapperProvider(objectMapper);
-        this.dbService = new DBEventDefinitionService(mongodb.mongoConnection(), mapperProvider, stateService,
-                mock(EntityOwnershipService.class), null);
+        final MongoCollections mongoCollections = new MongoCollections(mapperProvider, mongodb.mongoConnection());
+        this.dbService = new DBEventDefinitionService(mongoCollections, stateService,
+                mock(EntityOwnershipService.class), null, new IgnoreSearchFilters());
         this.clock = new JobSchedulerTestClock(DateTime.now(DateTimeZone.UTC));
     }
 
@@ -168,6 +178,41 @@ public class AggregationEventProcessorConfigTest {
         final ValidationResult validationResult2 = invalidConfig2.validate();
         assertThat(validationResult2.failed()).isTrue();
         assertThat(validationResult2.getErrors()).containsOnlyKeys("search_within_ms");
+    }
+
+    @Test
+    public void testValidateWithAggregationSeriesMissingFields() {
+        final AggregationConditions trueConditionThatDoesNotMatter = AggregationConditions.builder().expression(Expr.True.create()).build();
+        final AggregationEventProcessorConfig configWithSingleSeriesWithoutField = getConfig().toBuilder()
+                .searchWithinMs(100)
+                .series(List.of(Cardinality.builder().field("").build()))
+                .conditions(trueConditionThatDoesNotMatter)
+                .build();
+
+        ValidationResult validationResult = configWithSingleSeriesWithoutField.validate();
+        assertTrue(validationResult.failed());
+        assertEquals(1, validationResult.getErrors().get(FIELD_SERIES).size());
+        assertThat(validationResult.getErrors()).containsOnlyKeys(FIELD_SERIES);
+
+        final AggregationEventProcessorConfig configWithMultipleSeriesWithoutField = getConfig().toBuilder()
+                .searchWithinMs(100)
+                .series(
+                        List.of(
+                                Cardinality.builder().field("").build(),
+                                Max.builder().field("").build(),
+                                Average.builder().field("").build(),
+                                Latest.builder().field("").build(),
+                                Sum.builder().field("").build()
+                        )
+                )
+                .conditions(trueConditionThatDoesNotMatter)
+                .build();
+
+        validationResult = configWithMultipleSeriesWithoutField.validate();
+        assertTrue(validationResult.failed());
+        assertThat(validationResult.getErrors()).containsOnlyKeys(FIELD_SERIES);
+        assertEquals(5, validationResult.getErrors().get(FIELD_SERIES).size());
+
     }
 
     @Test

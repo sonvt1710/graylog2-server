@@ -15,17 +15,28 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import React, { useMemo } from 'react';
-import capitalize from 'lodash/capitalize';
 import isEmpty from 'lodash/isEmpty';
 
 import usePluginEntities from 'hooks/usePluginEntities';
 import { Col, Row } from 'components/bootstrap';
 import { Timestamp } from 'components/common';
-import EventDefinitionPriorityEnum from 'logic/alerts/EventDefinitionPriorityEnum';
 import type { Event, EventDefinitionContext } from 'components/events/events/types';
 import EventFields from 'components/events/events/EventFields';
 import EventDefinitionLink from 'components/event-definitions/event-definitions/EventDefinitionLink';
 import LinkToReplaySearch from 'components/event-definitions/replay-search/LinkToReplaySearch';
+import PriorityName from 'components/events/events/PriorityName';
+
+export const usePluggableEventActions = (eventId: string) => {
+  const pluggableEventActions = usePluginEntities('views.components.eventActions');
+
+  return pluggableEventActions.filter(
+    (perspective) => (perspective.useCondition ? !!perspective.useCondition() : true),
+  ).map(
+    ({ component: PluggableEventAction, key }) => (
+      <PluggableEventAction key={key} eventId={eventId} />
+    ),
+  );
+};
 
 type Props = {
   event: Event,
@@ -34,12 +45,7 @@ type Props = {
 
 const EventDetails = ({ event, eventDefinitionContext }: Props) => {
   const eventDefinitionTypes = usePluginEntities('eventDefinitionTypes');
-  const pluggableEventActions = usePluginEntities('views.components.eventActions');
-  const eventActions = useMemo(() => pluggableEventActions.map(
-    ({ component: PluggableEventAction, key }) => (
-      <PluggableEventAction key={key} event={event} />
-    ),
-  ), [pluggableEventActions, event]);
+  const pluggableActions = usePluggableEventActions(event.id);
 
   const plugin = useMemo(() => {
     if (event.event_definition_type === undefined) {
@@ -57,7 +63,7 @@ const EventDetails = ({ event, eventDefinitionContext }: Props) => {
           <dd>{event.id}</dd>
           <dt>Priority</dt>
           <dd>
-            {capitalize(EventDefinitionPriorityEnum.properties[event.priority].name)}
+            <PriorityName priority={event.priority} />
           </dd>
           <dt>Timestamp</dt>
           <dd> <Timestamp dateTime={event.timestamp} />
@@ -69,13 +75,13 @@ const EventDetails = ({ event, eventDefinitionContext }: Props) => {
             ({(plugin && plugin.displayName) || event.event_definition_type})
           </dd>
           {event.replay_info && (
-          <>
-            <dt>Actions</dt>
-            <dd>
-              <LinkToReplaySearch id={event.id} isEvent />
-            </dd>
-            {eventActions}
-          </>
+            <>
+              <dt>Actions</dt>
+              <dd>
+                <LinkToReplaySearch id={event.id} isEvent />
+              </dd>
+              {pluggableActions}
+            </>
           )}
         </dl>
       </Col>

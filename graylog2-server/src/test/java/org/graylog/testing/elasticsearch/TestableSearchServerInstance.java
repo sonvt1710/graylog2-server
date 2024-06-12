@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * This rule starts a Datanode instance and provides a configured {@link Client}.
+ * This rule starts a SearchServer instance and provides a configured {@link Client}.
  */
 public abstract class TestableSearchServerInstance extends ExternalResource implements SearchServerInstance {
     private static final Logger LOG = LoggerFactory.getLogger(TestableSearchServerInstance.class);
@@ -47,9 +47,11 @@ public abstract class TestableSearchServerInstance extends ExternalResource impl
     protected final String heapSize;
     protected final Network network;
     protected final String hostname;
+    private final Map<String, String> env;
     protected GenericContainer<?> container;
 
     protected static volatile boolean isFirstContainerStart = true;
+    private boolean closed = false;
 
     @Override
     public abstract Client client();
@@ -58,22 +60,27 @@ public abstract class TestableSearchServerInstance extends ExternalResource impl
     public abstract FixtureImporter fixtureImporter();
 
     protected TestableSearchServerInstance(final SearchVersion version, final String hostname, final Network network, final String heapSize) {
+        this(version, hostname, network, heapSize, Map.of());
+    }
+
+    protected TestableSearchServerInstance(final SearchVersion version, final String hostname, final Network network, final String heapSize, Map<String, String> env) {
         this.version = version;
         this.heapSize = heapSize;
         this.network = network;
         this.hostname = hostname;
+        this.env = env;
     }
 
     protected abstract String imageName();
 
     public void createContainer() {
-        this.container = createContainer(version, network, heapSize);
+        this.container = createContainer(version, network, heapSize, env);
     }
 
     @Override
-    public GenericContainer<?> createContainer(SearchVersion version, Network network, String heapSize) {
+    public GenericContainer<?> createContainer(SearchVersion version, Network network, String heapSize, Map<String, String> env) {
         final var image = imageName();
-        final ContainerCacheKey cacheKey = new ContainerCacheKey(version, heapSize);
+        final ContainerCacheKey cacheKey = new ContainerCacheKey(version, heapSize, env);
         if (!containersByVersion.containsKey(cacheKey)) {
             LOG.debug("Creating instance {}", image);
             GenericContainer<?> container = buildContainer(image, network);
@@ -85,6 +92,7 @@ public abstract class TestableSearchServerInstance extends ExternalResource impl
         } else {
             isFirstContainerStart = false;
         }
+        LOG.debug("Using cached instance {}", image);
         return containersByVersion.get(cacheKey);
     }
 
@@ -95,17 +103,27 @@ public abstract class TestableSearchServerInstance extends ExternalResource impl
 
     @Override
     public void cleanUp() {
-        client().cleanUp();
+        if (!closed) {
+            try {
+                client().cleanUp();
+            } catch (Exception e) {
+                LOG.warn("Failed to run cleanup of " + searchServer(), e);
+            }
+        } else {
+            LOG.debug("Cleanup skipped, client already closed");
+        }
     }
 
     @Override
     public void close() {
+        LOG.debug("Closing instance {}", imageName());
         container.close();
         containersByVersion.entrySet().stream()
                 .filter(entry -> entry.getValue().equals(container))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet()) // intermediate collect to avoid modifying the containersByVersion while we iterate over it
                 .forEach(containersByVersion::remove);
+        this.closed = true;
     }
 
     @Override
@@ -135,6 +153,10 @@ public abstract class TestableSearchServerInstance extends ExternalResource impl
 
     protected String getEsJavaOpts() {
         return StringUtils.f("-Xms%s -Xmx%s -Dlog4j2.formatMsgNoLookups=true", heapSize, heapSize);
+    }
+
+    protected Map<String, String> getContainerEnv() {
+        return env;
     }
 
     @Override

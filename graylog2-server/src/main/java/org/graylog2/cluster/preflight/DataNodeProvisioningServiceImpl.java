@@ -16,17 +16,17 @@
  */
 package org.graylog2.cluster.preflight;
 
+import com.mongodb.BasicDBObject;
+import jakarta.inject.Inject;
 import org.graylog2.bindings.providers.MongoJackObjectMapperProvider;
 import org.graylog2.database.MongoConnection;
 import org.graylog2.database.PaginatedDbService;
-import org.graylog2.database.indices.MongoDbIndexTools;
 import org.graylog2.shared.utilities.StringUtils;
 import org.mongojack.DBQuery;
 import org.mongojack.DBUpdate;
 import org.mongojack.JacksonDBCollection;
 import org.mongojack.WriteResult;
 
-import javax.inject.Inject;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,12 +47,12 @@ public class DataNodeProvisioningServiceImpl extends PaginatedDbService<DataNode
                                            final MongoConnection mongoConnection) {
         super(mongoConnection, mongoJackObjectMapperProvider, DataNodeProvisioningConfig.class, COLLECTION_NAME);
         this.dbCollection = JacksonDBCollection.wrap(mongoConnection.getDatabase().getCollection(COLLECTION_NAME), DataNodeProvisioningConfig.class, String.class, mongoJackObjectMapperProvider.get());
-        new MongoDbIndexTools(db).createUniqueIndex(FIELD_NODEID);
+        dbCollection.createIndex(new BasicDBObject(FIELD_NODEID, 1), new BasicDBObject("unique", true));
     }
 
     @Override
-    public DataNodeProvisioningConfig getPreflightConfigFor(String nodeId) {
-        return dbCollection.findOne(DBQuery.is(FIELD_NODEID, nodeId));
+    public Optional<DataNodeProvisioningConfig> getPreflightConfigFor(String nodeId) {
+        return Optional.ofNullable(dbCollection.findOne(DBQuery.is(FIELD_NODEID, nodeId)));
     }
 
     @Override

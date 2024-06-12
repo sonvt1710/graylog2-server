@@ -19,7 +19,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { useStore } from 'stores/connect';
-import { LinkContainer } from 'components/common/router';
 import { ButtonToolbar, Col, Row, Button } from 'components/bootstrap';
 import Routes from 'routing/Routes';
 import DocsHelper from 'util/DocsHelper';
@@ -33,22 +32,36 @@ import EventsPageNavigation from 'components/events/EventsPageNavigation';
 import useHistory from 'routing/useHistory';
 import useSendTelemetry from 'logic/telemetry/useSendTelemetry';
 import type { EventDefinition } from 'components/event-definitions/event-definitions-types';
+import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
+import usePluginEntities from 'hooks/usePluginEntities';
+
+type SigmaEventDefinitionConfig = EventDefinition['config'] & {
+  sigma_rule_id: string,
+}
 
 const ViewEventDefinitionPage = () => {
   const params = useParams<{ definitionId?: string }>();
   const currentUser = useCurrentUser();
   const [eventDefinition, setEventDefinition] = useState<EventDefinition | undefined>();
-  const [isMutable, setIsMutable] = useState<boolean>(true);
   const [showDialog, setShowDialog] = useState(false);
   const { all: notifications } = useStore(EventNotificationsStore);
   const history = useHistory();
   const sendTelemetry = useSendTelemetry();
   const navigate = useNavigate();
+  const [showSigmaModal, setShowSigmaModal] = useState(false);
+  const [refetch, setRefetch] = useState(true);
+
+  const pluggableSigmaModal = usePluginEntities('eventDefinitions.components.editSigmaModal')
+    .find((entity: { key: string }) => entity.key === 'coreSigmaModal');
+
+  const CoreSigmaModal = pluggableSigmaModal
+    ? pluggableSigmaModal.component as React.FC<{ ruleId: string, onCancel: () => void, onConfirm: () => void }>
+    : null;
 
   const isSystemEventDefinition = (): boolean => eventDefinition?.config?.type === 'system-notifications-v1';
 
   useEffect(() => {
-    if (currentUser && isPermitted(currentUser.permissions, `eventdefinitions:read:${params.definitionId}`)) {
+    if (currentUser && isPermitted(currentUser.permissions, `eventdefinitions:read:${params.definitionId}`) && refetch) {
       EventDefinitionsActions.get(params.definitionId)
         .then(
           (response) => {
@@ -59,7 +72,6 @@ const ViewEventDefinitionPage = () => {
             // back to the server.
             eventDefinitionResp.config._is_scheduled = response.context.scheduler.is_scheduled;
             setEventDefinition(eventDefinitionResp);
-            setIsMutable(response.is_mutable);
           },
           (error) => {
             if (error.status === 404) {
@@ -69,18 +81,32 @@ const ViewEventDefinitionPage = () => {
         );
 
       EventNotificationsActions.listAll();
+
+      setRefetch(false);
     }
-  }, [currentUser, history, params]);
+  }, [currentUser, history, params, refetch]);
 
   const handleDuplicateEvent = () => {
-    sendTelemetry('click', {
+    sendTelemetry(TELEMETRY_EVENT_TYPE.EVENTDEFINITION_DUPLICATED, {
       app_pathname: 'event-definition',
-      app_action_value: 'event-definition-action-copy',
     });
 
     EventDefinitionsActions.copy(eventDefinition).then((duplicatedEvent) => {
       navigate(Routes.ALERTS.DEFINITIONS.edit(duplicatedEvent.id));
     });
+  };
+
+  const onEditEventDefinition = () => {
+    if (eventDefinition.config.type === 'sigma-v1') {
+      setShowSigmaModal(true);
+    } else {
+      navigate(Routes.ALERTS.DEFINITIONS.edit(params.definitionId));
+    }
+  };
+
+  const onSigmaModalClose = () => {
+    setRefetch(true);
+    setShowSigmaModal(false);
   };
 
   if (!eventDefinition || !notifications) {
@@ -102,19 +128,15 @@ const ViewEventDefinitionPage = () => {
         <PageHeader title={`View "${eventDefinition.title}" Event Definition`}
                     actions={(
                       <ButtonToolbar>
-                        {isMutable && (
                         <IfPermitted permissions={`eventdefinitions:edit:${params.definitionId}`}>
-                          <LinkContainer to={Routes.ALERTS.DEFINITIONS.edit(params.definitionId)}>
-                            <Button bsStyle="success">Edit Event Definition</Button>
-                          </LinkContainer>
+                          <Button bsStyle="success" onClick={onEditEventDefinition}>Edit Event Definition</Button>
                         </IfPermitted>
-                        )}
                         {!isSystemEventDefinition() && (
-                        <IfPermitted permissions="eventdefinitions:create">
-                          <Button onClick={() => setShowDialog(true)} bsStyle="success">Duplicate Event
-                            Definition
-                          </Button>
-                        </IfPermitted>
+                          <IfPermitted permissions="eventdefinitions:create">
+                            <Button onClick={() => setShowDialog(true)} bsStyle="success">Duplicate Event
+                              Definition
+                            </Button>
+                          </IfPermitted>
                         )}
                       </ButtonToolbar>
                   )}
@@ -136,12 +158,17 @@ const ViewEventDefinitionPage = () => {
         </Row>
       </DocumentTitle>
       {showDialog && (
-      <ConfirmDialog title="Copy Event Definition"
-                     show
-                     onConfirm={() => handleDuplicateEvent()}
-                     onCancel={() => setShowDialog(false)}>
-        {`Are you sure you want to create a copy of "${eventDefinition.title}"?`}
-      </ConfirmDialog>
+        <ConfirmDialog title="Copy Event Definition"
+                       show
+                       onConfirm={() => handleDuplicateEvent()}
+                       onCancel={() => setShowDialog(false)}>
+          {`Are you sure you want to create a copy of "${eventDefinition.title}"?`}
+        </ConfirmDialog>
+      )}
+      {showSigmaModal && CoreSigmaModal && (
+        <CoreSigmaModal ruleId={(eventDefinition.config as SigmaEventDefinitionConfig).sigma_rule_id}
+                        onCancel={onSigmaModalClose}
+                        onConfirm={onSigmaModalClose} />
       )}
     </>
   );

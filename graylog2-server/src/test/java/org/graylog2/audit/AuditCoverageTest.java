@@ -25,6 +25,7 @@ import org.graylog.plugins.sidecar.audit.SidecarAuditEventTypes;
 import org.graylog.plugins.views.audit.ViewsAuditEventTypes;
 import org.graylog.scheduler.audit.JobSchedulerAuditEventTypes;
 import org.graylog.security.SecurityAuditEventTypes;
+import org.graylog.security.certutil.audit.CaAuditEventTypes;
 import org.graylog2.audit.jersey.AuditEvent;
 import org.graylog2.audit.jersey.NoAuditEvent;
 import org.junit.Test;
@@ -33,9 +34,10 @@ import org.reflections.scanners.MethodAnnotationsScanner;
 import org.reflections.util.ClasspathHelper;
 import org.reflections.util.ConfigurationBuilder;
 
-import javax.ws.rs.DELETE;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Set;
@@ -58,6 +60,7 @@ public class AuditCoverageTest {
                 .addAll(new EventsAuditEventTypes().auditEventTypes())
                 .addAll(new SecurityAuditEventTypes().auditEventTypes())
                 .addAll(new IntegrationsAuditEventTypes().auditEventTypes())
+                .addAll(new CaAuditEventTypes().auditEventTypes())
                 .build();
         final Reflections reflections = new Reflections(configurationBuilder);
 

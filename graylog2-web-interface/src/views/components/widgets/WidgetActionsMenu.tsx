@@ -23,7 +23,7 @@ import { getPathnameWithoutId } from 'util/URLUtils';
 import type { BackendWidgetPosition } from 'views/types';
 import ExportModal from 'views/components/export/ExportModal';
 import MoveWidgetToTab from 'views/logic/views/MoveWidgetToTab';
-import { loadDashboard } from 'views/logic/views/Actions';
+import { loadAsDashboard, loadDashboard } from 'views/logic/views/Actions';
 import { IconButton } from 'components/common';
 import { ViewManagementActions } from 'views/stores/ViewManagementStore';
 import type WidgetPosition from 'views/logic/widgets/WidgetPosition';
@@ -48,9 +48,11 @@ import useSendTelemetry from 'logic/telemetry/useSendTelemetry';
 import useLocation from 'routing/useLocation';
 import useParameters from 'views/hooks/useParameters';
 import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
+import ExtractWidgetIntoNewView from 'views/logic/views/ExtractWidgetIntoNewView';
+import ExtraMenuWidgetActions from 'views/components/widgets/ExtraMenuWidgetActions';
 
 import ReplaySearchButton from './ReplaySearchButton';
-import ExtraWidgetActions from './ExtraWidgetActions';
+import ExtraDropdownWidgetActions from './ExtraDropdownWidgetActions';
 import CopyToDashboard from './CopyToDashboardForm';
 import MoveWidgetToTabModal from './MoveWidgetToTabModal';
 import WidgetActionDropdown from './WidgetActionDropdown';
@@ -92,6 +94,12 @@ const _onCopyToDashboard = async (
   }
 
   setShowCopyToDashboard(false);
+};
+
+const _onCreateNewDashboard = async (view: View, widgetId: string, history: HistoryFunction) => {
+  const newView = ExtractWidgetIntoNewView(view, widgetId);
+
+  loadAsDashboard(history, newView);
 };
 
 const _onMoveWidgetToPage = async (
@@ -176,6 +184,17 @@ const WidgetActionsMenu = ({
 
     return _onCopyToDashboard(view, setShowCopyToDashboard, widgetId, dashboardId, history);
   }, [history, pathname, sendTelemetry, view]);
+
+  const onCreateNewDashboard = useCallback(() => {
+    sendTelemetry(TELEMETRY_EVENT_TYPE.SEARCH_WIDGET_ACTION.CREATE_NEW_DASHBOARD, {
+      app_pathname: getPathnameWithoutId(pathname),
+      app_section: 'search-widget',
+      app_action_value: 'widget-create-new-dashboard-button',
+    });
+
+    return _onCreateNewDashboard(view, widget.id, history);
+  }, [sendTelemetry, pathname, view, widget.id, history]);
+
   const onMoveWidgetToTab = useCallback((widgetId: string, queryId: string, keepCopy: boolean) => {
     sendTelemetry(TELEMETRY_EVENT_TYPE.SEARCH_WIDGET_ACTION.MOVE, {
       app_pathname: getPathnameWithoutId(pathname),
@@ -205,7 +224,7 @@ const WidgetActionsMenu = ({
   }, [pathname, sendTelemetry, setWidgetFocusing, widget.id]);
 
   return (
-    <Container>
+    <Container className="widget-actions-menu">
       <IfInteractive>
         <IfDashboard>
           <ReplaySearchButton queryString={query.query_string}
@@ -214,8 +233,9 @@ const WidgetActionsMenu = ({
                               parameterBindings={parameterBindings}
                               parameters={parameters} />
         </IfDashboard>
+        <ExtraMenuWidgetActions widget={widget} />
         {isFocused && (
-          <IconButton name="compress-arrows-alt"
+          <IconButton name="fullscreen_exit"
                       title="Un-focus widget"
                       onClick={unsetWidgetFocusing} />
         )}
@@ -225,14 +245,15 @@ const WidgetActionsMenu = ({
                                      widgetType={widget.type}
                                      onStretch={onPositionsChange}
                                      position={position} />
-            <IconButton name="expand-arrows-alt"
+            <IconButton name="fullscreen"
                         title="Focus this widget"
                         onClick={focusWidget} />
           </>
         )}
 
-        <IconButton name="edit"
+        <IconButton name="edit_square"
                     title="Edit"
+                    iconType="regular"
                     onClick={toggleEdit} />
 
         <WidgetActionDropdown>
@@ -244,15 +265,12 @@ const WidgetActionsMenu = ({
               Copy to Dashboard
             </MenuItem>
           </IfSearch>
-          {widget.isExportable && <MenuItem onSelect={() => setShowExport(true)}>Export</MenuItem>}
           <IfDashboard>
             <MenuItem onSelect={() => setShowMoveWidgetToTab(true)}>
               Move to Page
             </MenuItem>
           </IfDashboard>
-          <ExtraWidgetActions widget={widget}
-                              onSelect={() => {
-                              }} />
+          <ExtraDropdownWidgetActions widget={widget} />
           <MenuItem divider />
           <MenuItem onSelect={onDelete}>
             Delete
@@ -260,10 +278,11 @@ const WidgetActionsMenu = ({
         </WidgetActionDropdown>
 
         {showCopyToDashboard && (
-          <CopyToDashboard onSubmit={(dashboardId) => onCopyToDashboard(widget.id, dashboardId)}
+          <CopyToDashboard onCopyToDashboard={(dashboardId) => onCopyToDashboard(widget.id, dashboardId)}
                            onCancel={() => setShowCopyToDashboard(false)}
                            submitLoadingText="Copying widget..."
-                           submitButtonText="Copy widget" />
+                           submitButtonText="Copy widget"
+                           onCreateNewDashboard={onCreateNewDashboard} />
         )}
 
         {showExport && (

@@ -21,9 +21,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.graylog.datanode.Configuration;
+import org.graylog.datanode.configuration.DatanodeConfiguration;
 import org.graylog.datanode.configuration.TruststoreCreator;
 import org.graylog.security.certutil.CertConstants;
+import org.graylog.security.certutil.csr.FilesystemKeystoreInformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,13 +52,14 @@ public class OpensearchSecurityConfiguration {
 
     private static final String KEYSTORE_FORMAT = "PKCS12";
     private static final String TRUSTSTORE_FORMAT = "PKCS12";
-    private static final String TRUSTSTORE_FILENAME = "datanode-truststore.p12";
+    private static final Path TRUSTSTORE_FILE = Path.of("datanode-truststore.p12");
 
-    private final KeystoreInformation transportCertificate;
-    private final KeystoreInformation httpCertificate;
-    private KeystoreInformation truststore;
+    private final FilesystemKeystoreInformation transportCertificate;
+    private final FilesystemKeystoreInformation httpCertificate;
+    private FilesystemKeystoreInformation truststore;
+    private String opensearchHeap;
 
-    public OpensearchSecurityConfiguration(KeystoreInformation transportCertificate, KeystoreInformation httpCertificate) {
+    public OpensearchSecurityConfiguration(FilesystemKeystoreInformation transportCertificate, FilesystemKeystoreInformation httpCertificate) {
         this.transportCertificate = transportCertificate;
         this.httpCertificate = httpCertificate;
     }
@@ -73,15 +75,16 @@ public class OpensearchSecurityConfiguration {
      * initial set of opensearch users, it will create and persist a truststore that will be set as a system-wide
      * truststore.
      */
-    public OpensearchSecurityConfiguration configure(Configuration localConfiguration, byte[] signingKey) throws GeneralSecurityException, IOException {
+    public OpensearchSecurityConfiguration configure(DatanodeConfiguration datanodeConfiguration, byte[] signingKey) throws GeneralSecurityException, IOException {
+        opensearchHeap = datanodeConfiguration.opensearchHeap();
         if (securityEnabled()) {
 
             logCertificateInformation("transport certificate", transportCertificate);
             logCertificateInformation("HTTP certificate", httpCertificate);
 
-            final Path opensearchConfigDir = Path.of(localConfiguration.getOpensearchConfigLocation()).resolve("opensearch");
+            final Path opensearchConfigDir = datanodeConfiguration.datanodeDirectories().getOpensearchProcessConfigurationDir();
 
-            final Path trustStorePath = opensearchConfigDir.resolve(TRUSTSTORE_FILENAME);
+            final Path trustStorePath = datanodeConfiguration.datanodeDirectories().createOpensearchProcessConfigurationFile(TRUSTSTORE_FILE);
             final String truststorePassword = RandomStringUtils.randomAlphabetic(256);
 
             this.truststore = TruststoreCreator.newTruststore()
@@ -108,24 +111,22 @@ public class OpensearchSecurityConfiguration {
             config.put("plugins.security.ssl.transport.keystore_alias", CertConstants.DATANODE_KEY_ALIAS);
 
             config.put("plugins.security.ssl.transport.truststore_type", TRUSTSTORE_FORMAT);
-            config.put("plugins.security.ssl.transport.truststore_filepath", TRUSTSTORE_FILENAME);
+            config.put("plugins.security.ssl.transport.truststore_filepath", TRUSTSTORE_FILE.toString());
             config.put("plugins.security.ssl.transport.truststore_password", truststore.passwordAsString());
-
-            // this disables hostname verification for transport. It's a workaround for localnode communication
-            // via SSL, where Opensearch still tries to communicate with 'localhost' and not the publish_host or other
-            // configured node names.
-            config.put("plugins.security.ssl.transport.enforce_hostname_verification", "false");
 
             config.put("plugins.security.ssl.http.enabled", "true");
 
             config.put("plugins.security.ssl.http.keystore_type", KEYSTORE_FORMAT);
-            config.put("plugins.security.ssl.http.keystore_filepath",  httpCertificate.location().getFileName().toString());  // todo: this should be computed as a relative path
+            config.put("plugins.security.ssl.http.keystore_filepath", httpCertificate.location().getFileName().toString());  // todo: this should be computed as a relative path
             config.put("plugins.security.ssl.http.keystore_password", httpCertificate.passwordAsString());
             config.put("plugins.security.ssl.http.keystore_alias", CertConstants.DATANODE_KEY_ALIAS);
 
             config.put("plugins.security.ssl.http.truststore_type", TRUSTSTORE_FORMAT);
-            config.put("plugins.security.ssl.http.truststore_filepath", TRUSTSTORE_FILENAME);
+            config.put("plugins.security.ssl.http.truststore_filepath", TRUSTSTORE_FILE.toString());
             config.put("plugins.security.ssl.http.truststore_password", truststore.passwordAsString());
+
+            // enable client cert auth
+            config.put("plugins.security.ssl.http.clientauth_mode", "OPTIONAL");
         } else {
             config.put("plugins.security.disabled", "true");
             config.put("plugins.security.ssl.http.enabled", "false");
@@ -135,8 +136,8 @@ public class OpensearchSecurityConfiguration {
 
     private Map<String, Object> filterConfigurationMap(final Map<String, Object> map, final String... keys) {
         Map<String, Object> result = map;
-        for(final String key: List.of(keys)) {
-            result = (Map<String, Object>)result.get(key);
+        for (final String key : List.of(keys)) {
+            result = (Map<String, Object>) result.get(key);
         }
         return result;
     }
@@ -156,15 +157,15 @@ public class OpensearchSecurityConfiguration {
         return !Objects.isNull(httpCertificate) && !Objects.isNull(transportCertificate);
     }
 
-    public KeystoreInformation getTransportCertificate() {
+    public FilesystemKeystoreInformation getTransportCertificate() {
         return transportCertificate;
     }
 
-    public KeystoreInformation getHttpCertificate() {
+    public FilesystemKeystoreInformation getHttpCertificate() {
         return httpCertificate;
     }
 
-    public KeystoreInformation getTruststore() {
+    public FilesystemKeystoreInformation getTruststore() {
         return truststore;
     }
 
@@ -180,7 +181,7 @@ public class OpensearchSecurityConfiguration {
 
         config.put("plugins.security.enable_snapshot_restore_privilege", "true");
         config.put("plugins.security.check_snapshot_restore_write_privileges", "true");
-        config.put("plugins.security.restapi.roles_enabled", "all_access,security_rest_api_access");
+        config.put("plugins.security.restapi.roles_enabled", "all_access,security_rest_api_access,readall");
         config.put("plugins.security.system_indices.enabled", "true");
         config.put("plugins.security.system_indices.indices", ".plugins-ml-model,.plugins-ml-task,.opendistro-alerting-config,.opendistro-alerting-alert*,.opendistro-anomaly-results*,.opendistro-anomaly-detector*,.opendistro-anomaly-checkpoints,.opendistro-anomaly-detection-state,.opendistro-reports-*,.opensearch-notifications-*,.opensearch-notebooks,.opensearch-observability,.opendistro-asynchronous-search-response*,.replication-metadata-store");
         config.put("node.max_local_storage_nodes", "3");
@@ -188,14 +189,14 @@ public class OpensearchSecurityConfiguration {
         return config.build();
     }
 
-    private void logCertificateInformation(String certificateType, KeystoreInformation keystore) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
+    private void logCertificateInformation(String certificateType, FilesystemKeystoreInformation keystore) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
         final KeyStore instance = KeyStore.getInstance(KEYSTORE_FORMAT);
         try (final FileInputStream is = new FileInputStream(keystore.location().toFile())) {
             instance.load(is, keystore.password());
             final Enumeration<String> aliases = instance.aliases();
-            while(aliases.hasMoreElements()) {
+            while (aliases.hasMoreElements()) {
                 final Certificate cert = instance.getCertificate(aliases.nextElement());
-                if(cert instanceof X509Certificate x509Certificate) {
+                if (cert instanceof X509Certificate x509Certificate) {
                     final String alternativeNames = x509Certificate.getSubjectAlternativeNames()
                             .stream()
                             .map(san -> san.get(1))
@@ -205,5 +206,9 @@ public class OpensearchSecurityConfiguration {
                 }
             }
         }
+    }
+
+    public String getOpensearchHeap() {
+        return opensearchHeap;
     }
 }

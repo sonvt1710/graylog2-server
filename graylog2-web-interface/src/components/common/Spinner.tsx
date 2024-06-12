@@ -16,16 +16,22 @@
  */
 import * as React from 'react';
 import PropTypes from 'prop-types';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 import type { IconName } from 'components/common/Icon';
 
 import Icon from './Icon';
 import Delayed from './Delayed';
 
-const StyledIcon = styled(Icon)<{ $displayMargin: boolean }>(({ $displayMargin }) => (
-  $displayMargin ? 'margin-right: 6px;' : ''
-));
+const Container = styled.span`
+  display: inline-flex;
+  align-items: center;
+  vertical-align: baseline;
+`;
+
+const StyledIcon = styled(Icon)<{ $displayMargin: boolean }>(({ $displayMargin }) => css`
+  ${$displayMargin ? 'margin-right: 6px;' : ''}
+`);
 
 type Props = {
   delay?: number,
@@ -38,7 +44,9 @@ type Props = {
  */
 const Spinner = ({ name, text, delay, ...rest }: Props) => (
   <Delayed delay={delay}>
-    <StyledIcon {...rest} name={name} $displayMargin={!!text?.trim()} spin />{text}
+    <Container>
+      <StyledIcon {...rest} name={name} $displayMargin={!!text?.trim()} spin />{text}
+    </Container>
   </Delayed>
 );
 
@@ -52,7 +60,7 @@ Spinner.propTypes = {
 };
 
 Spinner.defaultProps = {
-  name: 'spinner',
+  name: 'progress_activity',
   text: 'Loading...',
   delay: 200,
 };

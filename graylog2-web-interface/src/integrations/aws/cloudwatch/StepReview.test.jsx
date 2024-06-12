@@ -33,7 +33,7 @@ jest.mock('logic/rest/FetchProvider', () => jest.fn());
 
 describe('<StepReview>', () => {
   afterEach(() => {
-    jest.resetAllMocks();
+    jest.clearAllMocks();
   });
 
   it('creates an input as default action', async () => {
@@ -49,7 +49,7 @@ describe('<StepReview>', () => {
       </ApiContext.Provider>,
     );
 
-    const submitButton = screen.getByRole('button', { name: /complete cloudWatch setup/i });
+    const submitButton = await screen.findByRole('button', { name: /complete cloudWatch setup/i });
 
     expect(submitButton).toBeInTheDocument();
 

@@ -20,7 +20,8 @@ import org.graylog.security.certutil.ca.exceptions.KeyStoreStorageException;
 import org.graylog.security.certutil.keystore.storage.location.KeystoreMongoLocation;
 import org.graylog2.cluster.certificates.CertificatesService;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.security.KeyStore;
@@ -32,13 +33,10 @@ import static org.graylog.security.certutil.CertConstants.PKCS12;
 public final class KeystoreMongoStorage implements KeystoreStorage<KeystoreMongoLocation> {
 
     private final CertificatesService certificatesService;
-    private final KeystoreContentMover keystoreContentMover;
 
     @Inject
-    public KeystoreMongoStorage(final CertificatesService certificatesService,
-                                final KeystoreContentMover keystoreContentMover) {
+    public KeystoreMongoStorage(final CertificatesService certificatesService) {
         this.certificatesService = certificatesService;
-        this.keystoreContentMover = keystoreContentMover;
     }
 
     @Override
@@ -50,7 +48,7 @@ public final class KeystoreMongoStorage implements KeystoreStorage<KeystoreMongo
             if (newPassword == null) {
                 keyStore.store(baos, currentPassword);
             } else {
-                KeyStore newKeyStore = keystoreContentMover.moveContents(keyStore, currentPassword, newPassword);
+                KeyStore newKeyStore = KeystoreUtils.newStoreCopyContent(keyStore, currentPassword, newPassword);
                 newKeyStore.store(baos, newPassword);
             }
             final String keystoreDataAsString = Base64.getEncoder().encodeToString(baos.toByteArray());

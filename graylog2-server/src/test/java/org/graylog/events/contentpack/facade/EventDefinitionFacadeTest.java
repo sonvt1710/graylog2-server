@@ -43,6 +43,7 @@ import org.graylog.events.processor.EventProcessorConfig;
 import org.graylog.events.processor.aggregation.AggregationConditions;
 import org.graylog.events.processor.aggregation.AggregationEventProcessorConfig;
 import org.graylog.events.processor.storage.PersistToStreamsStorageHandler;
+import org.graylog.plugins.views.search.searchfilters.db.IgnoreSearchFilters;
 import org.graylog.plugins.views.search.searchtypes.pivot.SeriesSpec;
 import org.graylog.plugins.views.search.searchtypes.pivot.series.Count;
 import org.graylog.scheduler.DBJobDefinitionService;
@@ -64,6 +65,7 @@ import org.graylog2.contentpacks.model.entities.EntityV1;
 import org.graylog2.contentpacks.model.entities.NativeEntity;
 import org.graylog2.contentpacks.model.entities.NativeEntityDescriptor;
 import org.graylog2.contentpacks.model.entities.references.ValueReference;
+import org.graylog2.database.MongoCollections;
 import org.graylog2.database.entities.DefaultEntityScope;
 import org.graylog2.database.entities.EntityScope;
 import org.graylog2.database.entities.EntityScopeService;
@@ -101,6 +103,7 @@ import static org.mockito.Mockito.when;
 
 public class EventDefinitionFacadeTest {
     public static final Set<EntityScope> ENTITY_SCOPES = Collections.singleton(new DefaultEntityScope());
+    private static final String REMEDIATION_STEPS = "remediation";
     @Rule
     public final MongoDBInstance mongodb = MongoDBInstance.createForClass();
 
@@ -149,7 +152,8 @@ public class EventDefinitionFacadeTest {
         jobDefinitionService = mock(DBJobDefinitionService.class);
         jobTriggerService = mock(DBJobTriggerService.class);
         jobSchedulerClock = mock(JobSchedulerClock.class);
-        eventDefinitionService = new DBEventDefinitionService(mongodb.mongoConnection(), mapperProvider, stateService, entityOwnershipService, new EntityScopeService(ENTITY_SCOPES));
+        final MongoCollections mongoCollections = new MongoCollections(mapperProvider, mongodb.mongoConnection());
+        eventDefinitionService = new DBEventDefinitionService(mongoCollections, stateService, entityOwnershipService, new EntityScopeService(ENTITY_SCOPES), new IgnoreSearchFilters());
         eventDefinitionHandler = new EventDefinitionHandler(
                 eventDefinitionService, jobDefinitionService, jobTriggerService, jobSchedulerClock);
         Set<PluginMetaData> pluginMetaData = new HashSet<>();
@@ -173,6 +177,7 @@ public class EventDefinitionFacadeTest {
                 EventDefinitionEntity.class);
         assertThat(eventDefinitionEntity.title().asString()).isEqualTo("title");
         assertThat(eventDefinitionEntity.description().asString()).isEqualTo("description");
+        assertThat(eventDefinitionEntity.remediationSteps().asString()).isEqualTo("remediation");
         assertThat(eventDefinitionEntity.config().type()).isEqualTo(AggregationEventProcessorConfigEntity.TYPE_NAME);
         assertThat(eventDefinitionEntity.isScheduled().asBoolean(ImmutableMap.of())).isTrue();
     }
@@ -194,6 +199,7 @@ public class EventDefinitionFacadeTest {
                 EventDefinitionEntity.class);
         assertThat(eventDefinitionEntity.title().asString()).isEqualTo("title");
         assertThat(eventDefinitionEntity.description().asString()).isEqualTo("description");
+        assertThat(eventDefinitionEntity.remediationSteps().asString()).isEqualTo(REMEDIATION_STEPS);
         assertThat(eventDefinitionEntity.config().type()).isEqualTo(AggregationEventProcessorConfigEntity.TYPE_NAME);
         assertThat(eventDefinitionEntity.isScheduled().asBoolean(ImmutableMap.of())).isFalse();
     }
@@ -221,6 +227,7 @@ public class EventDefinitionFacadeTest {
         final EventDefinitionEntity eventDefinitionEntity = EventDefinitionEntity.builder()
                 .title(ValueReference.of("title"))
                 .description(ValueReference.of("description"))
+                .remediationSteps(ValueReference.of(REMEDIATION_STEPS))
                 .priority(ValueReference.of(1))
                 .config(aggregationConfig)
                 .alert(ValueReference.of(true))
@@ -278,6 +285,7 @@ public class EventDefinitionFacadeTest {
         final EventDefinitionDto eventDefinitionDto = nativeEntity.entity();
         assertThat(eventDefinitionDto.title()).isEqualTo("title");
         assertThat(eventDefinitionDto.description()).isEqualTo("description");
+        assertThat(eventDefinitionDto.remediationSteps()).isEqualTo(REMEDIATION_STEPS);
         assertThat(eventDefinitionDto.config().type()).isEqualTo("aggregation-v1");
         // verify that ownership was registered for this entity
         verify(entityOwnershipService, times(1)).registerNewEventDefinition(nativeEntity.entity().id(), kmerzUser);
@@ -355,7 +363,7 @@ public class EventDefinitionFacadeTest {
         EntityDescriptor eventDescriptor = EntityDescriptor
                 .create("5d4032513d2746703d1467f6", ModelTypes.EVENT_DEFINITION_V1);
         EntityDescriptor streamDescriptor = EntityDescriptor
-                .create("5cdab2293d27467fbe9e8a72", ModelTypes.STREAM_V1);
+                .create("5cdab2293d27467fbe9e8a72", ModelTypes.STREAM_REF_V1);
         Set<EntityDescriptor> expectedNodes = ImmutableSet.of(eventDescriptor, streamDescriptor);
         Graph<EntityDescriptor> graph = facade.resolveNativeEntity(eventDescriptor);
         assertThat(graph).isNotNull();
@@ -397,6 +405,7 @@ public class EventDefinitionFacadeTest {
                 .title("Test")
                 .id("id")
                 .description("Test")
+                .remediationSteps(REMEDIATION_STEPS)
                 .priority(1)
                 .config(config)
                 .keySpec(ImmutableList.of())

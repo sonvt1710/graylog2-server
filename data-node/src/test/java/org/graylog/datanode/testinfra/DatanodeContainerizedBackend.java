@@ -16,18 +16,24 @@
  */
 package org.graylog.datanode.testinfra;
 
+import com.github.joschi.jadconfig.util.Duration;
+import jakarta.inject.Provider;
 import org.graylog.testing.completebackend.ContainerizedGraylogBackend;
 import org.graylog.testing.completebackend.DefaultMavenProjectDirProvider;
 import org.graylog.testing.containermatrix.MongodbServer;
 import org.graylog.testing.datanode.DatanodeDockerHooks;
 import org.graylog.testing.graylognode.MavenPackager;
 import org.graylog.testing.mongodb.MongoDBTestService;
+import org.graylog2.security.IndexerJwtAuthTokenProvider;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 
 public class DatanodeContainerizedBackend {
     public static final String IMAGE_WORKING_DIR = "/usr/share/graylog/datanode";
     static public final String SIGNING_SECRET = ContainerizedGraylogBackend.PASSWORD_SECRET;
+
+    public static final Provider<String> JWT_AUTH_TOKEN_PROVIDER = new IndexerJwtAuthTokenProvider(SIGNING_SECRET, Duration.seconds(120), Duration.seconds(60));
+
     public static final int DATANODE_REST_PORT = 8999;
     public static final int DATANODE_OPENSEARCH_HTTP_PORT = 9200;
     public static final int DATANODE_OPENSEARCH_TRANSPORT_PORT = 9300;
@@ -37,7 +43,7 @@ public class DatanodeContainerizedBackend {
     private final MongoDBTestService mongoDBTestService;
     private boolean shouldCloseMongodb = false;
     private final GenericContainer<?> datanodeContainer;
-
+    private String nodeName;
 
     public DatanodeContainerizedBackend() {
         this(new DatanodeDockerHooksAdapter());
@@ -50,7 +56,7 @@ public class DatanodeContainerizedBackend {
     public DatanodeContainerizedBackend(final String nodeName, DatanodeDockerHooks hooks) {
 
         this.network = Network.newNetwork();
-        this.mongoDBTestService = MongoDBTestService.create(MongodbServer.MONGO5, this.network);
+        this.mongoDBTestService = MongoDBTestService.create(MongodbServer.DEFAULT_VERSION, this.network);
         this.mongoDBTestService.start();
 
         // we have created these resources, we have to close them.
@@ -71,6 +77,7 @@ public class DatanodeContainerizedBackend {
     }
 
     private GenericContainer<?> createDatanodeContainer(String nodeName, DatanodeDockerHooks customizer) {
+        this.nodeName = nodeName;
         MavenPackager.packageJarIfNecessary(new DefaultMavenProjectDirProvider());
 
         return new DatanodeDevContainerBuilder()
@@ -124,5 +131,9 @@ public class DatanodeContainerizedBackend {
 
     public Integer getOpensearchTransportPort() {
         return datanodeContainer.getMappedPort(DATANODE_OPENSEARCH_TRANSPORT_PORT);
+    }
+
+    public String getNodeName() {
+        return nodeName;
     }
 }

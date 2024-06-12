@@ -30,7 +30,7 @@ import useViewType from 'views/hooks/useViewType';
 import View from 'views/logic/views/View';
 import useCurrentQueryId from 'views/logic/queries/useCurrentQueryId';
 import TestStoreProvider from 'views/test/TestStoreProvider';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import { createSearch } from 'fixtures/searches';
 import { setTimerange } from 'views/logic/slices/viewSlice';
 
@@ -49,7 +49,6 @@ const defaultCurrentQuery = Query.fromJSON({ id: 'dummyquery', query: {}, timera
 describe('XYPlot', () => {
   const timestampPivot = Pivot.create(['timestamp'], 'time', { interval: { type: 'auto', scaling: 1.0 } });
   const config = AggregationWidgetConfig.builder().rowPivots([timestampPivot]).build();
-  const getChartColor = () => undefined;
   const setChartColor = () => ({});
   const chartData = [{ y: [23, 42], name: 'count()' }];
 
@@ -68,7 +67,6 @@ describe('XYPlot', () => {
       <TestStoreProvider view={view} initialQuery={currentQuery.id}>
         <XYPlot chartData={chartData}
                 config={config}
-                getChartColor={getChartColor}
                 setChartColor={setChartColor}
                 {...props} />
       </TestStoreProvider>
@@ -79,9 +77,7 @@ describe('XYPlot', () => {
     currentQuery: defaultCurrentQuery,
   };
 
-  beforeAll(loadViewsPlugin);
-
-  afterAll(unloadViewsPlugin);
+  useViewsPlugin();
 
   beforeEach(() => {
     asMock(useCurrentQuery).mockReturnValue(defaultCurrentQuery);
@@ -98,7 +94,6 @@ describe('XYPlot', () => {
     expect(genericPlot).toHaveProp('layout', {
       yaxis: { fixedrange: true, rangemode: 'tozero', tickformat: ',~r', type: 'linear' },
       xaxis: { fixedrange: true },
-      showlegend: false,
       hovermode: 'x',
     });
 
