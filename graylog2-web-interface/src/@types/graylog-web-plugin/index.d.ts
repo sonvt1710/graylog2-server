@@ -19,6 +19,8 @@ import type * as React from 'react';
 import type FetchError from 'logic/errors/FetchError';
 import type { DataTieringConfig } from 'components/indices/data-tiering';
 import type { QualifiedUrl } from 'routing/Routes';
+import type User from 'logic/users/User';
+import type { EventDefinition } from 'components/event-definitions/event-definitions-types';
 
 interface PluginRoute {
   path: string;
@@ -133,17 +135,41 @@ interface LogoutHook {
 
 type DataTiering = {
   type: string,
-  TiersConfigurationFields: React.ComponentType<{}>,
+  TiersConfigurationFields: React.ComponentType<{valuesPrefix?: string}>,
   TiersSummary: React.ComponentType<{
     config: DataTieringConfig
   }>,
+  WarmTierReadinessInfo: React.ComponentType,
+}
+
+interface PluginDataWarehouse {
+  DataWarehouseStatus: React.ComponentType<{
+    stream: {
+      enabled_status: boolean;
+    }
+  }>,
+  StreamDataWarehouse: React.ComponentType<{}>,
+}
+
+interface PluginDataWarehouse {
+  DataWarehouseStatus: React.ComponentType<{
+    stream: {
+      enabled_status: boolean;
+    }
+  }>,
+  StreamDataWarehouse: React.ComponentType<{}>,
 }
 
 type FieldValueProvider = {
   type: string,
   displayName: string,
   formComponent: React.ComponentType,
-  summaryComponent: React.ComponentType,
+  summaryComponent: React.ComponentType<{
+    fieldName: string,
+    keys: Array<string>,
+    currentUser: User,
+    config: EventDefinition['field_spec'][number],
+  }>,
   defaultConfig: {
     template?: string,
     table_name?: string,
@@ -155,12 +181,25 @@ type FieldValueProvider = {
     key_field?: string,
   },
 }
+
+interface PluginDataWarehouse {
+  DataWarehouseStatus: React.ComponentType<{
+    stream: {
+      enabled_status: boolean;
+    }
+  }>,
+  StreamDataWarehouse: React.ComponentType<{}>,
+  DataWarehouseJobs: React.ComponentType<{}>,
+}
+
 declare module 'graylog-web-plugin/plugin' {
   interface PluginExports {
     navigation?: Array<PluginNavigation>;
+    dataWarehouse?: Array<PluginDataWarehouse>
     dataTiering?: Array<DataTiering>
     defaultNavigation?: Array<PluginNavigation>;
     navigationItems?: Array<PluginNavigationItems>;
+    dataWarehouse?: Array<PluginDataWarehouse>
     globalNotifications?: Array<GlobalNotification>;
     fieldValueProviders?:Array<FieldValueProvider>;
     // Global context providers allow to fetch and process data once
