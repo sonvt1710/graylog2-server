@@ -124,7 +124,9 @@ function Preview({ value, height = 100, show, withFullView = false, noBackground
         <MarkdownStyles>
           <Markdown text={value} />
         </MarkdownStyles>
-        {withFullView && <ExpandIconButton name="expand_content" title="Expand content" size="sm" onClick={() => setFullView(true)} />}
+        {withFullView && (
+          <ExpandIconButton name="expand_content" title="Expand content" size="sm" onClick={() => setFullView(true)} />
+        )}
         <PreviewModal value={value} show={fullView} onClose={() => setFullView(false)} />
       </Container>
     )
