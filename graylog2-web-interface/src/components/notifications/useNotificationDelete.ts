@@ -14,4 +14,22 @@
  * along with this program. If not, see
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
-/// <reference types="jest-enzyme" />
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+import { SystemNotifications } from '@graylog/server-api';
+
+import { NOTIFICATIONS_QUERY_KEY } from 'components/notifications/constants';
+
+const deleteNotification = ({ type, key }: { type: string; key: string }) =>
+  SystemNotifications.deleteKeyedNotification(type, key);
+
+const useNotificationDelete = () => {
+  const queryClient = useQueryClient();
+  const { mutateAsync } = useMutation(deleteNotification, {
+    onSuccess: () => queryClient.invalidateQueries(NOTIFICATIONS_QUERY_KEY),
+  });
+
+  return mutateAsync;
+};
+
+export default useNotificationDelete;

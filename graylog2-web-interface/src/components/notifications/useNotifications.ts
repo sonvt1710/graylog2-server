@@ -14,4 +14,21 @@
  * along with this program. If not, see
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
-export { default as GraylogClusterOverview } from './GraylogClusterOverview';
+import { useQuery } from '@tanstack/react-query';
+
+import { SystemNotifications } from '@graylog/server-api';
+
+import { NOTIFICATIONS_QUERY_KEY } from 'components/notifications/constants';
+
+const POLL_INTERVAL = 3000;
+
+const useNotifications = () => {
+  const { data, isLoading } = useQuery({
+    queryKey: NOTIFICATIONS_QUERY_KEY,
+    queryFn: SystemNotifications.listNotifications,
+    refetchInterval: POLL_INTERVAL,
+  });
+
+  return { data, isLoading };
+};
+export default useNotifications;
