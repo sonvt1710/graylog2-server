@@ -15,7 +15,7 @@
   "license": "SSPL-1.0",
   "dependencies": {
     "@babel/eslint-parser": "7.16.5",
-    "@tanstack/eslint-plugin-query": "5.74.7",
+    "@tanstack/eslint-plugin-query": "5.81.2",
     "@typescript-eslint/eslint-plugin": "8.37.0",
     "@typescript-eslint/parser": "8.37.0",
     "eslint": "8.57.0",
