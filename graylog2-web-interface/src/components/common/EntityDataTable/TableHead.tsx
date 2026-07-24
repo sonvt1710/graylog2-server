@@ -77,6 +77,7 @@ export const Th = styled.th<{
     ${$colId === ACTIONS_COL_ID &&
     css`
       position: sticky;
+
       ${ScrollShadow('left')}
       &::before {
         display: var(${displayScrollRightIndicatorVar}, none);

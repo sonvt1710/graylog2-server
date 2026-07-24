@@ -75,6 +75,7 @@ const Td = styled.td<{
       ? css`
           position: sticky;
           ${$pinningPosition === 'left' ? 'left' : 'right'}: 0;
+
           ${ScrollShadow('left')}
           &::before {
             display: var(${displayScrollRightIndicatorVar}, none);
