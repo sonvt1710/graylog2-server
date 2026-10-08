@@ -37,7 +37,7 @@ type PluginNavigationLink = {
 
 interface PluginNavigationItems {
   key: string;
-  component: React.ComponentType<{ smallScreen?: boolean }>;
+  component: React.ComponentType;
 }
 interface GlobalNotification {
   key: string;
@@ -238,6 +238,7 @@ declare module 'graylog-web-plugin/plugin' {
     path: QualifiedUrl<string>;
     permissions?: Permissions;
     telemetryEvent?: CreatorTelemetryEvent;
+    requiredFeatureFlag?: string;
   }
 
   interface EntityActions {
@@ -350,7 +351,12 @@ declare module 'graylog-web-plugin/plugin' {
       timestamp_to: string;
       restore_history: Array<{ id: string }>;
     }>;
-    DataLakeStreamDeleteWarning: React.ComponentType;
+    DataLakeStreamDeleteWarning: React.ComponentType<{
+      streamId: string;
+      isEnabled: boolean;
+      hasArchivedData: boolean;
+      hasRetrievals: boolean;
+    }>;
   }
 
   interface PluginArchive {
